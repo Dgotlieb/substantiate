@@ -23,6 +23,7 @@ class Repo:
         if not self.path.is_dir():
             raise RepoError(f"not a directory: {self.path}")
         self.ref = ref
+        self._contents: dict[str, str | None] = {}
         self.is_git = self._git_ok(["rev-parse", "--git-dir"])
         if self.is_git and not self._git_ok(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]):
             raise RepoError(f"ref not found in repository: {ref}")
@@ -64,6 +65,10 @@ class Repo:
         return out
 
     @functools.cached_property
+    def _fileset(self) -> set[str]:
+        return set(self.files)
+
+    @functools.cached_property
     def _by_basename(self) -> dict[str, list[str]]:
         index: dict[str, list[str]] = {}
         for p in self.files:
@@ -71,19 +76,59 @@ class Repo:
         return index
 
     def exists(self, path: str) -> bool:
-        norm = path.lstrip("./")
-        if norm in self.files:
-            return True
-        # Reports routinely omit or add a leading component ("src/http2.c" vs
-        # "lib/http2.c" vs "http2.c"). Treat an unambiguous suffix match as a hit.
-        return any(f == norm or f.endswith("/" + norm) for f in self.files)
+        return self.resolve(path) is not None
 
     def resolve(self, path: str) -> str | None:
         norm = path.lstrip("./")
-        for f in self.files:
-            if f == norm or f.endswith("/" + norm):
+        if norm in self._fileset:
+            return norm
+        # Reports routinely omit or add a leading component ("src/http2.c" vs
+        # "lib/http2.c" vs "http2.c"). Treat a suffix match as a hit. Only
+        # reached for paths that are not tracked verbatim, so the scan is rare.
+        for f in self._by_basename.get(os.path.basename(norm).lower(), []):
+            if f.endswith("/" + norm):
                 return f
         return None
+
+    def grep_files(self, needle: str, *, ignore_case: bool = False) -> list[str]:
+        """Tracked files containing ``needle`` as a literal string.
+
+        This is the prefilter that keeps symbol resolution linear in *matching*
+        files rather than in repository size. Without it, resolving one symbol
+        means reading every file in the tree, which takes minutes on a
+        repository the size of curl or CPython.
+        """
+        if not needle:
+            return []
+        if self.is_git:
+            args = ["grep", "-l", "-F", "--full-name"]
+            if ignore_case:
+                args.append("-i")
+            args += ["-e", needle, self.ref, "--"]
+            proc = subprocess.run(
+                ["git", "-C", str(self.path), *args],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            # git grep exits 1 on "no matches", which is not an error here.
+            if proc.returncode not in (0, 1):
+                return []
+            prefix = f"{self.ref}:"
+            out = []
+            for line in proc.stdout.splitlines():
+                out.append(line[len(prefix):] if line.startswith(prefix) else line)
+            return out
+
+        hay = needle.lower() if ignore_case else needle
+        hits = []
+        for path in self.files:
+            content = self.read(path)
+            if not content:
+                continue
+            if hay in (content.lower() if ignore_case else content):
+                hits.append(path)
+        return hits
 
     def same_basename(self, path: str) -> list[str]:
         """Other locations holding a file of this name -- the usual explanation
@@ -94,12 +139,19 @@ class Repo:
         resolved = self.resolve(path)
         if resolved is None:
             return None
+        if resolved in self._contents:
+            return self._contents[resolved]
         try:
             if self.is_git:
-                return self._git(["show", f"{self.ref}:{resolved}"])
-            return (self.path / resolved).read_text(errors="replace")
+                content = self._git(["show", f"{self.ref}:{resolved}"])
+            else:
+                content = (self.path / resolved).read_text(errors="replace")
         except (RepoError, OSError, UnicodeDecodeError):
-            return None
+            content = None
+        # Reports name the same handful of files repeatedly; re-spawning git
+        # show for each mention is pure waste.
+        self._contents[resolved] = content
+        return content
 
     def line_count(self, path: str) -> int | None:
         content = self.read(path)

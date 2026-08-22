@@ -53,6 +53,46 @@ class TestPrecision(unittest.TestCase):
         self.assertEqual(len(kinds(text, ClaimKind.SYMBOL)), 1)
 
 
+class TestRealWorldFalsePositives(unittest.TestCase):
+    """Regressions taken from a run over curl's own documentation.
+
+    That corpus is maintainer-written and accurate, so every claim these
+    patterns produced was a false finding against an honest document. The first
+    run marked 54.9% of tier-1 claims as not found; each case below is one of
+    the culprits.
+    """
+
+    def test_products_and_protocols_are_not_symbols(self):
+        text = (
+            "Built against OpenSSL (or LibreSSL), using Schannel (on Windows), "
+            "with NTLM (deprecated) and Negotiate (SPNEGO) over TLS (1.3)."
+        )
+        self.assertEqual(kinds(text, ClaimKind.SYMBOL), [])
+
+    def test_capitalised_nouns_are_not_symbols(self):
+        text = "Signatures (detached) and URLs (absolute) and a Boolean (true)."
+        self.assertEqual(kinds(text, ClaimKind.SYMBOL), [])
+
+    def test_illustrative_bare_filenames_are_not_paths(self):
+        text = "Write the jar to cookies.txt, read file.txt, or run node.js here."
+        self.assertEqual(kinds(text, ClaimKind.PATH), [])
+
+    def test_dates_are_not_commit_shas(self):
+        self.assertEqual(kinds("Released on 20190808 as planned.", ClaimKind.COMMIT), [])
+
+    def test_a_real_call_still_extracts(self):
+        # The precision rules must not silence the thing the tool is for.
+        text = "Fix Curl_hpack_decode() and curl_easy_setopt(CURLOPT_URL, url)."
+        self.assertEqual(
+            sorted(values(text, ClaimKind.SYMBOL, "name")),
+            ["Curl_hpack_decode", "curl_easy_setopt"],
+        )
+
+    def test_a_real_path_still_extracts(self):
+        self.assertEqual(kinds("See lib/vtls/openssl.c for details.", ClaimKind.PATH),
+                         ["lib/vtls/openssl.c"])
+
+
 class TestRecall(unittest.TestCase):
     def test_underscored_and_camel_symbols(self):
         text = "Both Curl_hpack_decode() and parseHeaderBlock() are involved."

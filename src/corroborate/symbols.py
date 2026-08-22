@@ -84,23 +84,27 @@ class RegexSymbolResolver:
         base = re.split(r"::|->|\.", name)[-1]
         if not base:
             return []
+        compiled: dict[str, list[re.Pattern]] = {}
         hits: list[Location] = []
-        for path in repo.files:
+        # One grep, then read only the files that could possibly match. Walking
+        # the whole tree here is what made this unusable on a real repository.
+        for path in repo.grep_files(base):
             ext = path.rsplit(".", 1)[-1] if "." in path else ""
             dialect = _dialect(ext)
             if dialect is None:
                 continue
-            patterns = [
-                re.compile(p.format(n=re.escape(base)), re.MULTILINE)
-                for p in _DECLARATIONS[dialect]
-            ]
+            if dialect not in compiled:
+                compiled[dialect] = [
+                    re.compile(p.format(n=re.escape(base)), re.MULTILINE)
+                    for p in _DECLARATIONS[dialect]
+                ]
             content = repo.read(path)
-            if not content or base not in content:
-                continue  # cheap reject before running the real patterns
-            for pattern in patterns:
-                for m in pattern.finditer(content):
-                    line = content.count("\n", 0, m.start()) + 1
-                    hits.append(Location(path, line))
+            if not content:
+                continue
+            for pattern in compiled[dialect]:
+                m = pattern.search(content)
+                if m:
+                    hits.append(Location(path, content.count("\n", 0, m.start()) + 1))
                     break
         return hits
 
@@ -112,7 +116,10 @@ class RegexSymbolResolver:
             return []
         found: set[str] = set()
         ident = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]{3,})\s*\(")
-        for path in repo.files:
+        # A near miss must contain the symbol as a substring, so the same grep
+        # prefilter applies -- case-insensitively, since case drift is one of
+        # the misses worth catching.
+        for path in repo.grep_files(base, ignore_case=True):
             ext = path.rsplit(".", 1)[-1] if "." in path else ""
             if _dialect(ext) is None:
                 continue

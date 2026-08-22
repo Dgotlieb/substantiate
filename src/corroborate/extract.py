@@ -45,9 +45,20 @@ _LINE_REF_PROSE = re.compile(
     re.IGNORECASE,
 )
 
-_PATH = re.compile(rf"\b((?:[\w.+\-]+/)*[\w.+\-]+\.(?:{_SRC_EXT}))\b", re.IGNORECASE)
+# A path claim requires a separator. Documentation is full of illustrative bare
+# filenames -- "cookies.txt", "file.txt", "node.js" -- which are not assertions
+# that the repository contains them. Measured against curl's own docs, dropping
+# bare filenames removes a large block of false positives and costs almost no
+# real recall, since reports naming a source file normally give its directory.
+_PATH = re.compile(rf"\b((?:[\w.+\-]+/)+[\w.+\-]+\.(?:{_SRC_EXT}))\b", re.IGNORECASE)
 
-_SYMBOL = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:(?:::|->|\.)[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
+# The identifier must abut its parenthesis. Prose writes "OpenSSL (and its
+# forks)" and "the parser (see below)"; code writes "Curl_hpack_decode(". That
+# single space is the most reliable separator between the two available without
+# parsing, and removing it was worth more than every other precision rule here.
+_SYMBOL = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*(?:(?:::|->|\.)[A-Za-z_][A-Za-z0-9_]*)*)\(\s*(\))?"
+)
 
 _VERSION_RANGE = re.compile(
     r"\bv?(\d+\.\d+(?:\.\d+)?)\s*(?:-|–|—|to|through|thru|up\s+to)\s*v?(\d+\.\d+(?:\.\d+)?)\b",
@@ -68,14 +79,19 @@ _SYMBOL_STOPWORDS = frozenset(
 )
 
 
-def _looks_like_symbol(name: str) -> bool:
+def _looks_like_symbol(name: str, empty_parens: bool = False) -> bool:
     base = name.split("::")[-1].split(".")[-1].split("->")[-1]
     if base.lower() in _SYMBOL_STOPWORDS or len(base) < 3:
         return False
     if "_" in base or "::" in name or "->" in name:
         return True
-    # CamelCase or lowerCamelCase reads as code; a lone lowercase word does not.
-    return bool(re.search(r"[a-z][A-Z]", base)) or base[0].isupper()
+    if empty_parens:
+        return True
+    # lowerCamelCase reads as a call. A capitalised word does not: "OpenSSL",
+    # "Schannel", "NTLM" and "Boolean" are products, protocols and types, and
+    # treating them as undeclared functions is the single largest source of
+    # false findings against honest documentation.
+    return base[0].islower() and any(c.isupper() for c in base)
 
 
 class _Consumed:
@@ -145,7 +161,7 @@ def extract(text: str) -> list[Claim]:
     # 5. Symbols.
     for m in _SYMBOL.finditer(text):
         name = m.group(1)
-        if not _looks_like_symbol(name):
+        if not _looks_like_symbol(name, empty_parens=bool(m.group(2))):
             continue
         add(ClaimKind.SYMBOL, m, {"name": name}, span=m.span(1))
 
@@ -156,11 +172,12 @@ def extract(text: str) -> list[Claim]:
     for m in _VERSION.finditer(text):
         add(ClaimKind.VERSION, m, {"version": m.group(1)}, span=m.span(1))
 
-    # 7. Commit SHAs. Requiring a digit rejects English hex-alikes ("deadbeef",
-    # "accede") without needing a dictionary.
+    # 7. Commit SHAs. A real abbreviated SHA effectively always mixes digits and
+    # letters: requiring both rejects English hex-alikes ("deadbeef", "accede")
+    # and, just as importantly, bare numbers like the date "20190808".
     for m in _COMMIT.finditer(text):
         sha = m.group(1)
-        if not any(ch.isdigit() for ch in sha):
+        if not any(ch.isdigit() for ch in sha) or not any(ch in "abcdef" for ch in sha):
             continue
         add(ClaimKind.COMMIT, m, {"sha": sha})
 
