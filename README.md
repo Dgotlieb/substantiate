@@ -140,6 +140,28 @@ git clone https://github.com/USER/corroborate && cd corroborate
 python3 -m unittest discover -s tests -t .   # no install, no dependencies
 ```
 
+## Measured, not assumed
+
+The project's central risk is not missing fabricated reports. It is marking down honest
+ones. So the false-positive rate is measured against corpora known to be accurate — a
+project's own in-tree documentation is maintainer-written and references real code, so
+anything flagged there is either genuine drift or a bug in this tool.
+
+```sh
+python3 benchmarks/false_positives.py ~/src/curl docs
+```
+
+Against curl (4,449 files), that first run marked **54.9%** of Tier 1 claims as not found.
+Three causes — capitalised words before a parenthesis read as calls (`OpenSSL (or
+LibreSSL)`), illustrative bare filenames read as paths (`cookies.txt`), and a date parsed
+as a commit SHA — are now fixed and pinned by regression tests. The rate is **35.0%**, on a
+third as many extracted claims, and much of the remainder is real: `lib/doh.c` and
+`curl_easy_options` genuinely are absent from curl at HEAD.
+
+The number to drive toward zero is the *unexplained* share: misses with no hint attached.
+A miss that says "this file now lives at `lib/hpack.c`" helps everyone. A bare miss on an
+honest report is what gets the tool uninstalled.
+
 ## Status
 
 Early. The v0.1 surface is Tier 1 and Tier 2 with deterministic extraction. It is a
