@@ -34,9 +34,15 @@ _SRC_EXT = (
     r"sh|bash|pl|swift|m|mm|cs|scala|lua|sql|md|rst|txt|yml|yaml|toml|json|cfg|ini"
 )
 
+# A leading "\b" cannot match before a dot, which silently truncated dotfile
+# directories: ".github/workflows/ci.yml" was extracted as
+# "github/workflows/ci.yml", a path that then correctly failed to resolve. The
+# lookbehind anchors at a real boundary instead.
+_PATH_START = r"(?<![\w./])"
+
 # "lib/http2.c:1102" or "src/foo.py, line 42"
 _LINE_REF = re.compile(
-    rf"\b((?:[\w.+\-]+/)*[\w.+\-]+\.(?:{_SRC_EXT}))\s*(?::|,?\s+lines?\s+)(\d+)\b",
+    rf"{_PATH_START}((?:[\w.+\-]+/)*[\w.+\-]+\.(?:{_SRC_EXT}))\s*(?::|,?\s+lines?\s+)(\d+)\b",
     re.IGNORECASE,
 )
 # "line 1102 of lib/http2.c"
@@ -50,7 +56,9 @@ _LINE_REF_PROSE = re.compile(
 # that the repository contains them. Measured against curl's own docs, dropping
 # bare filenames removes a large block of false positives and costs almost no
 # real recall, since reports naming a source file normally give its directory.
-_PATH = re.compile(rf"\b((?:[\w.+\-]+/)+[\w.+\-]+\.(?:{_SRC_EXT}))\b", re.IGNORECASE)
+_PATH = re.compile(
+    rf"{_PATH_START}((?:[\w.+\-]+/)+[\w.+\-]+\.(?:{_SRC_EXT}))\b", re.IGNORECASE
+)
 
 # The identifier must abut its parenthesis. Prose writes "OpenSSL (and its
 # forks)" and "the parser (see below)"; code writes "Curl_hpack_decode(". That
@@ -92,6 +100,18 @@ def _looks_like_symbol(name: str, empty_parens: bool = False) -> bool:
     # treating them as undeclared functions is the single largest source of
     # false findings against honest documentation.
     return base[0].islower() and any(c.isupper() for c in base)
+
+
+def _looks_like_host(path: str) -> bool:
+    """True for schemeless URLs such as ``example.com/moo2.txt``.
+
+    Documentation is full of these, especially in a tool whose whole subject is
+    fetching URLs, and reading the hostname as a directory turns every one into
+    a false finding. A leading dot is fine (``.github/workflows/ci.yml``); an
+    interior dot in the first segment means a hostname.
+    """
+    first = path.lstrip("./").split("/", 1)[0]
+    return "." in first
 
 
 class _Consumed:
@@ -156,6 +176,8 @@ def extract(text: str) -> list[Claim]:
 
     # 4. Paths.
     for m in _PATH.finditer(text):
+        if _looks_like_host(m.group(1)):
+            continue
         add(ClaimKind.PATH, m, {"path": m.group(1)})
 
     # 5. Symbols.

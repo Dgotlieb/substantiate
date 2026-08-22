@@ -77,6 +77,16 @@ class TestRealWorldFalsePositives(unittest.TestCase):
         text = "Write the jar to cookies.txt, read file.txt, or run node.js here."
         self.assertEqual(kinds(text, ClaimKind.PATH), [])
 
+    def test_schemeless_urls_are_not_paths(self):
+        text = "Run curl example.com/moo2.txt and server.example.com/share/file.txt now."
+        self.assertEqual(kinds(text, ClaimKind.PATH), [])
+
+    def test_dotfile_directories_are_still_paths(self):
+        self.assertEqual(
+            kinds("See .github/workflows/ci.yml for the matrix.", ClaimKind.PATH),
+            [".github/workflows/ci.yml"],
+        )
+
     def test_dates_are_not_commit_shas(self):
         self.assertEqual(kinds("Released on 20190808 as planned.", ClaimKind.COMMIT), [])
 

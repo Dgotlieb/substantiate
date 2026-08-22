@@ -148,19 +148,28 @@ project's own in-tree documentation is maintainer-written and references real co
 anything flagged there is either genuine drift or a bug in this tool.
 
 ```sh
-python3 benchmarks/false_positives.py ~/src/curl docs
+python3 benchmarks/false_positives.py ~/src/curl docs --limit 150
 ```
 
-Against curl (4,449 files), that first run marked **54.9%** of Tier 1 claims as not found.
-Three causes — capitalised words before a parenthesis read as calls (`OpenSSL (or
-LibreSSL)`), illustrative bare filenames read as paths (`cookies.txt`), and a date parsed
-as a commit SHA — are now fixed and pinned by regression tests. The rate is **35.0%**, on a
-third as many extracted claims, and much of the remainder is real: `lib/doh.c` and
-`curl_easy_options` genuinely are absent from curl at HEAD.
+Against curl (4,449 files), the first run marked **54.9%** of Tier 1 claims as not found.
+Four causes, each now fixed and pinned by a regression test built from the actual miss:
 
-The number to drive toward zero is the *unexplained* share: misses with no hint attached.
-A miss that says "this file now lives at `lib/hpack.c`" helps everyone. A bare miss on an
-honest report is what gets the tool uninstalled.
+- capitalised words before a parenthesis read as calls — `OpenSSL (or LibreSSL)`,
+  `Schannel`, `NTLM`, `Boolean`
+- illustrative bare filenames read as paths — `cookies.txt`, `node.js`
+- schemeless URLs read as paths — `example.com/moo2.txt`
+- the date `20190808` parsed as a commit SHA
+
+Current rate on that corpus: **30.3% not found, of which 19.7% is unexplained.** That
+second number is the one that matters. A miss carrying a hint — "a file of that name
+exists at `lib/hpack.c`" — is useful to everyone. A bare miss on an honest report is what
+gets the tool uninstalled.
+
+Some of the remainder is the tool being right: `lib/doh.c`, `curl_formparse` and
+`curl_easy_options` genuinely are absent from curl at HEAD, so those are real
+documentation drift. The rest is known and tractable — build-system identifiers
+(`find_package`), system calls (`fork`), and constants defined through macro indirection
+(`CURLOPT_SSLVERSION`), which is the case a tree-sitter backend fixes.
 
 ## Status
 

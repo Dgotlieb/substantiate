@@ -24,6 +24,7 @@ class Repo:
             raise RepoError(f"not a directory: {self.path}")
         self.ref = ref
         self._contents: dict[str, str | None] = {}
+        self._greps: dict[tuple[str, bool], list[str]] = {}
         self.is_git = self._git_ok(["rev-parse", "--git-dir"])
         if self.is_git and not self._git_ok(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]):
             raise RepoError(f"ref not found in repository: {ref}")
@@ -100,6 +101,13 @@ class Repo:
         """
         if not needle:
             return []
+        # Memoised across the repository's lifetime. A triage run checks many
+        # reports against one checkout, and the same symbol recurs constantly;
+        # without this, scanning a documentation corpus re-greps the whole tree
+        # once per document and takes minutes instead of seconds.
+        cache_key = (needle, ignore_case)
+        if cache_key in self._greps:
+            return self._greps[cache_key]
         if self.is_git:
             args = ["grep", "-l", "-F", "--full-name"]
             if ignore_case:
@@ -112,12 +120,14 @@ class Repo:
                 check=False,
             )
             # git grep exits 1 on "no matches", which is not an error here.
+            # A real failure is left uncached so a transient fault is retried.
             if proc.returncode not in (0, 1):
                 return []
             prefix = f"{self.ref}:"
             out = []
             for line in proc.stdout.splitlines():
                 out.append(line[len(prefix):] if line.startswith(prefix) else line)
+            self._greps[cache_key] = out
             return out
 
         hay = needle.lower() if ignore_case else needle
@@ -128,6 +138,7 @@ class Repo:
                 continue
             if hay in (content.lower() if ignore_case else content):
                 hits.append(path)
+        self._greps[cache_key] = hits
         return hits
 
     def same_basename(self, path: str) -> list[str]:

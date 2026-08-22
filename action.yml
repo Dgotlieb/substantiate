@@ -69,13 +69,18 @@ runs:
         corroborate "${args[@]}" --format json > "$RUNNER_TEMP/result.json"
         corroborate "${args[@]}" --format markdown > "$RUNNER_TEMP/result.md"
 
+        # A fixed heredoc delimiter is forgeable: content that contains the
+        # delimiter on its own line can close the block early and inject
+        # further step outputs. The report body is attacker-controlled and
+        # reaches the rendered markdown, so the delimiter is randomised.
+        delim="CORROBORATE_$(openssl rand -hex 16 2>/dev/null || echo "${RANDOM}${RANDOM}${RANDOM}")"
         {
-          echo "markdown<<CORROBORATE_EOF"
+          echo "markdown<<$delim"
           cat "$RUNNER_TEMP/result.md"
-          echo "CORROBORATE_EOF"
-          echo "json<<CORROBORATE_EOF"
+          echo "$delim"
+          echo "json<<$delim"
           cat "$RUNNER_TEMP/result.json"
-          echo "CORROBORATE_EOF"
+          echo "$delim"
         } >> "$GITHUB_OUTPUT"
 
         python - <<'PY' >> "$GITHUB_OUTPUT"
