@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "corroborate"
+version = "0.1.0.dev0"
+description = "An evidence gate for open-source contributions: check whether the claims in a report correspond to anything real."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+keywords = ["open-source", "maintainers", "triage", "security", "vulnerability-reports"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+# Tier 1 has no dependencies and never will. Maintainers running this on
+# untrusted reports should not have to audit a dependency tree to do it.
+dependencies = []
+
+[project.optional-dependencies]
+# The tree-sitter backend replaces the regex symbol resolver. Optional so the
+# zero-dependency install stays the default path.
+treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.2"]
+
+[project.scripts]
+corroborate = "corroborate.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

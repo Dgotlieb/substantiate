@@ -1,0 +1,46 @@
+# Example workflow for projects adopting Corroborate.
+#
+# Copy this into your own repository as .github/workflows/corroborate.yml.
+# It posts one comment when an issue or pull request is opened, and only when
+# something failed to resolve -- a wall of green on a good report is noise.
+#
+# Security note: `pull_request_target` runs with a token that can comment, so it
+# deliberately checks out the BASE repository, never the pull request's head.
+# Nothing from the contributor is executed; their description is read as data.
+
+name: Corroborate
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the base repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          fetch-depth: 0   # tags and history, so version and commit claims resolve
+
+      - id: corroborate
+        uses: ./           # replace with: USER/corroborate@v1
+        with:
+          report: ${{ github.event.issue.body || github.event.pull_request.body }}
+          online: "true"
+
+      - name: Comment when claims did not resolve
+        if: steps.corroborate.outputs.unresolved != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ steps.corroborate.outputs.markdown }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
