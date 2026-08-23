@@ -12,15 +12,30 @@ license = { text = "Apache-2.0" }
 keywords = ["open-source", "maintainers", "triage", "security", "vulnerability-reports"]
 classifiers = [
   "Development Status :: 3 - Alpha",
+  "Environment :: Console",
   "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
   "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: Software Development :: Bug Tracking",
   "Topic :: Software Development :: Quality Assurance",
 ]
 
 # Tier 1 has no dependencies and never will. Maintainers running this on
 # untrusted reports should not have to audit a dependency tree to do it.
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Dgotlieb/substantiate"
+Repository = "https://github.com/Dgotlieb/substantiate"
+Issues = "https://github.com/Dgotlieb/substantiate/issues"
+Changelog = "https://github.com/Dgotlieb/substantiate/releases"
 
 [project.optional-dependencies]
 # The tree-sitter backend replaces the regex symbol resolver. Optional so the

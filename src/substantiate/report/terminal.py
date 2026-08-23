@@ -53,6 +53,10 @@ def render(result: Result, *, color: bool = True) -> str:
                 lines.append(f"  {' ' * 10} {' ' * _RAW_WIDTH} {paint('↳ ' + v.hint, 'dim')}")
         lines.append("")
 
+    for note in result.notes:
+        lines.append(paint(_wrap("note: " + note), "bold"))
+        lines.append("")
+
     lines.append(paint(_wrap(DISCLAIMER), "dim"))
     return "\n".join(lines)
 

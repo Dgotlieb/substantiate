@@ -53,6 +53,11 @@ class Result:
     ref: str = "HEAD"
     repo_path: str = "."
 
+    notes: list[str] = field(default_factory=list)
+    """Advice about the run itself rather than about any single claim -- most
+    often that the report names a release and was checked against something
+    else. Notes never assert anything about the report's validity."""
+
     def by_status(self, status: Status) -> list[Verdict]:
         return [v for v in self.verdicts if v.status is status]
 

@@ -20,6 +20,7 @@ def render(result: Result) -> str:
             "ref": result.ref,
             "repo": result.repo_path,
             "counts": result.counts,
+            "notes": result.notes,
             "disclaimer": DISCLAIMER,
             "claims": [
                 {

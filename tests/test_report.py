@@ -44,7 +44,7 @@ class TestCopyDiscipline(ReportCase):
     def test_tool_authored_copy_avoids_accusatory_vocabulary(self):
         # Scoped to strings the tool writes. Text quoted from the report itself
         # is the contributor's, and is reproduced verbatim on purpose.
-        authored = [DISCLAIMER]
+        authored = [DISCLAIMER, *self.result.notes]
         for v in self.result.verdicts:
             authored.append(v.detail)
             if v.hint:

@@ -7,3 +7,5 @@ dist/
 *.egg-info/
 .substantiate-cache/
 .DS_Store
+dist/
+build/

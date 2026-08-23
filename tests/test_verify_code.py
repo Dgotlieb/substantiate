@@ -174,6 +174,28 @@ class TestForeignAttributes(TierOneCase):
         self.assertIs(v.status, Status.VERIFIED)
 
 
+class TestRefNote(TierOneCase):
+    """Checking a release report against HEAD is the largest avoidable source
+    of misses, so the tool says so rather than letting drift read as error."""
+
+    def test_note_names_the_release_and_the_command(self):
+        result = check("Reproduced against 8.12.1 on Linux.", self.repo)
+        self.assertEqual(len(result.notes), 1)
+        note = result.notes[0]
+        self.assertIn("v8.12.1", note)
+        self.assertIn("--ref v8.12.1", note)
+
+    def test_no_note_when_already_pinned_to_a_release(self):
+        pinned = Repo(self.root, "v8.12.1")
+        self.assertEqual(check("Reproduced against 8.12.1.", pinned).notes, [])
+
+    def test_no_note_when_the_report_names_no_release(self):
+        self.assertEqual(check("The bug is in lib/http2.c today.", self.repo).notes, [])
+
+    def test_no_note_for_a_version_that_is_not_a_tag(self):
+        self.assertEqual(check("Reproduced against 8.9.0.", self.repo).notes, [])
+
+
 class TestRepoBehaviour(TierOneCase):
     def test_every_verdict_carries_a_reproducible_query(self):
         result = check(fixture("fabricated_hpack.md"), self.repo)

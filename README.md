@@ -94,6 +94,35 @@ substantiate check report.md --online
 substantiate check report.md --format json
 ```
 
+### Check against the release, not `HEAD`
+
+This is the single highest-leverage flag, and the most common way to get misleading
+output. A vulnerability report describes the code **as it was released**. Between that
+release and your `HEAD`, files get renamed, functions get refactored, whole modules move.
+Check the report against `HEAD` and that ordinary drift comes back looking like fabrication.
+
+```sh
+# Wrong: the report is about 8.9.0, but this checks today's code
+substantiate check report.md --repo ~/src/curl
+
+# Right: check the release the report actually names
+substantiate check report.md --repo ~/src/curl --ref v8.9.0
+```
+
+When a report names a release that exists as a tag and you checked something else,
+Substantiate says so and gives you the command:
+
+```
+note: This report names a release (v8.12.1) but was checked against HEAD. Code
+moves between releases, so some misses above may be drift rather than error. To
+check the release itself: --ref v8.12.1
+```
+
+Two practical notes. Version claims only resolve if the tags are present, so clone with
+full history — a `--depth 1` checkout has no tags and every version claim is skipped. And
+if the report names no version at all, that is worth asking about before triaging it: a
+report that cannot say which release it affects usually cannot be reproduced either.
+
 Because most reports that hurt most arrive privately — through HackerOne, a security list,
 or a draft advisory — the core takes *text plus a repository path*, not a webhook. The CLI
 works on anything you can paste into a file, and nothing leaves your machine unless you

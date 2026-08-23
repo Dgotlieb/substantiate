@@ -1,0 +1,70 @@
+# Publishes to PyPI when a GitHub release is published.
+#
+# Uses PyPI Trusted Publishing (OIDC), so there is no API token stored in this
+# repository and nothing to rotate or leak. One-time setup on PyPI, under the
+# project's Publishing settings:
+#
+#   Owner:        Dgotlieb
+#   Repository:   substantiate
+#   Workflow:     release.yml
+#   Environment:  pypi
+#
+# The build is checked and reinstalled from the wheel before anything is
+# uploaded: a package that cannot be installed from its own artifact should
+# never reach the index.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to publish
+        required: true
+        default: testpypi
+        type: choice
+        options: [testpypi, pypi]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build
+      - name: Check metadata renders on the index
+        run: python -m twine check --strict dist/*
+      - name: Install from the built wheel and smoke test
+        run: |
+          python -m pip install dist/*.whl
+          substantiate --version
+          substantiate extract README.md > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'release' && 'pypi' || inputs.target }}
+    permissions:
+      id-token: write   # required for Trusted Publishing; no token needed
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: >-
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi')
+                && 'https://test.pypi.org/legacy/' || '' }}

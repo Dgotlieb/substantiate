@@ -49,7 +49,41 @@ def run(
             )
             continue
         result.verdicts.append(_dispatch(claim, repo, resolver))
+    _add_ref_note(result, repo)
     return result
+
+
+def _add_ref_note(result: Result, repo: Repo) -> None:
+    """Suggest the release the report is actually about.
+
+    Checking a report against HEAD is the single largest avoidable source of
+    misses: a vulnerability report describes the code as it was released, and
+    the file it names may have been renamed or deleted since. When the report
+    itself names a release that exists as a tag, say so and give the exact
+    command, rather than letting a maintainer read drift as fabrication.
+    """
+    if repo.ref in repo.tags:
+        return  # already pinned to a release
+    versions = [
+        v for v in result.verdicts
+        if v.claim.kind is ClaimKind.VERSION and v.status is Status.VERIFIED
+    ]
+    if not versions:
+        return
+    tags = []
+    for verdict in versions:
+        tag = repo.find_tag(verdict.claim.data["version"])
+        if tag and tag not in tags:
+            tags.append(tag)
+    if not tags:
+        return
+    earliest = tags[0]
+    result.notes.append(
+        f"This report names {'a release' if len(tags) == 1 else 'releases'} "
+        f"({', '.join(tags)}) but was checked against {repo.ref}. Code moves between "
+        f"releases, so some misses above may be drift rather than error. To check the "
+        f"release itself: --ref {earliest}"
+    )
 
 
 def _dispatch(claim: Claim, repo: Repo, resolver) -> Verdict:

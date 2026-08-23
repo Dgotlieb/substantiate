@@ -36,6 +36,11 @@ def render(result: Result) -> str:
         out.append("Every extracted claim resolved against the repository.")
         out.append("")
 
+    for note in result.notes:
+        out.append(f"> [!NOTE]")
+        out.append(f"> {note}")
+        out.append("")
+
     resolved = [v for v in result.verdicts if v.status is not Status.NOT_FOUND]
     if resolved:
         out.append("<details>")
