@@ -12,6 +12,7 @@ themselves.
 
 from __future__ import annotations
 
+from .. import builtins
 from ..claims import Claim
 from ..repo import Repo
 from ..symbols import DEFAULT_RESOLVER, RegexSymbolResolver
@@ -44,6 +45,12 @@ def verify_symbol(
         first = hits[0]
         extra = f" (+{len(hits) - 1} more)" if len(hits) > 1 else ""
         return Verdict(claim, Status.VERIFIED, f"declared at {first}{extra}", query)
+
+    # A name that belongs to the C library or a build system is not a claim
+    # about this repository, and reporting it as missing is a false finding.
+    external = builtins.origin(name)
+    if external:
+        return Verdict(claim, Status.SKIPPED, f"{external}, not defined here", query)
 
     hint = None
     misses = resolver.near_misses(repo, name)

@@ -95,6 +95,38 @@ class TestGenuineReport(TierOneCase):
         self.assertIn("lib/hpack.c", symbols["Curl_hpack_cleanup"].detail)
 
 
+class TestDeclarationsOnly(TierOneCase):
+    """A symbol must be corroborated by a declaration and nothing else.
+
+    Measured on curl, the two biggest sources of false *verification* were
+    comments ("* memory released by realloc() before") and call sites
+    ("return realloc(ptr, size);"). Verifying a claim against a mention is
+    worse than failing to verify it: it silently blesses a fabricated report.
+    """
+
+    def test_symbol_named_only_in_a_comment_is_not_declared(self):
+        for name in ("Curl_ghost_alloc", "Curl_ghost_mentioned"):
+            with self.subTest(name=name):
+                result = check(f"The bug is in {name}().", self.repo)
+                self.assertIs(result.verdicts[0].status, Status.NOT_FOUND)
+
+    def test_symbol_only_called_is_not_declared(self):
+        result = check("The bug is in Curl_called_only().", self.repo)
+        self.assertIs(result.verdicts[0].status, Status.NOT_FOUND)
+
+    def test_a_real_declaration_next_to_them_still_verifies(self):
+        result = check("The bug is in Curl_http2_reset().", self.repo)
+        self.assertIs(result.verdicts[0].status, Status.VERIFIED)
+
+    def test_known_external_symbols_are_skipped_not_failed(self):
+        result = check("It calls fork() and find_package() and socketpair().", self.repo)
+        self.assertTrue(result.verdicts)
+        for v in result.verdicts:
+            with self.subTest(claim=v.claim.raw):
+                self.assertIs(v.status, Status.SKIPPED)
+                self.assertIn("not defined here", v.detail)
+
+
 class TestRepoBehaviour(TierOneCase):
     def test_every_verdict_carries_a_reproducible_query(self):
         result = check(fixture("fabricated_hpack.md"), self.repo)

@@ -29,8 +29,15 @@ def run(
     repo: Repo,
     *,
     tiers: set[int] = frozenset({1}),
-    resolver: RegexSymbolResolver = DEFAULT_RESOLVER,
+    resolver=None,
 ) -> Result:
+    if resolver is None:
+        # Resolved per call rather than at import: the tree-sitter extra may be
+        # installed after this module is first imported, and importing it
+        # eagerly would make the zero-dependency path pay for an optional one.
+        from ..treesitter import best_resolver
+
+        resolver = best_resolver()
     result = Result(ref=repo.ref, repo_path=str(repo.path))
     for claim in claims:
         tier = VERIFIERS.get(claim.kind)
@@ -45,7 +52,7 @@ def run(
     return result
 
 
-def _dispatch(claim: Claim, repo: Repo, resolver: RegexSymbolResolver) -> Verdict:
+def _dispatch(claim: Claim, repo: Repo, resolver) -> Verdict:
     try:
         if claim.kind is ClaimKind.PATH:
             return code.verify_path(repo, claim)
@@ -70,6 +77,6 @@ def _dispatch(claim: Claim, repo: Repo, resolver: RegexSymbolResolver) -> Verdic
     return Verdict(claim, Status.SKIPPED, "no verifier", query="")
 
 
-def check(text: str, repo: Repo, *, tiers: set[int] = frozenset({1})) -> Result:
+def check(text: str, repo: Repo, *, tiers: set[int] = frozenset({1}), resolver=None) -> Result:
     """Extract claims from ``text`` and verify them against ``repo``."""
-    return run(extract(text), repo, tiers=tiers)
+    return run(extract(text), repo, tiers=tiers, resolver=resolver)

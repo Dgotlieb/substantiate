@@ -29,6 +29,14 @@ CURLcode Curl_http2_done(struct Curl_easy *data, bool premature)
   (void)premature;
   return CURLE_OK;
 }
+
+/* Historical note: memory released by Curl_ghost_alloc() used to be logged
+ * here, and Curl_ghost_mentioned() is described in the old design docs. */
+CURLcode Curl_http2_reset(struct Curl_easy *data)
+{
+  Curl_called_only(data);
+  return Curl_http2_done(data, FALSE);
+}
 """
 
 HPACK_C = """\

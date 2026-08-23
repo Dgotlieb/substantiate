@@ -24,6 +24,27 @@ jobs:
       # No install and no dependencies: the suite runs from a clean checkout.
       - run: python -m unittest discover -s tests -t . --verbose
 
+  # The optional backend must be exercised too: it is selected automatically
+  # whenever it is importable, so a break here changes results for anyone who
+  # installed the extra, silently.
+  treesitter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[treesitter]"
+      - run: python -m unittest discover -s tests -t . --verbose
+      - name: Confirm the backend is actually selected
+        run: |
+          python -c "
+          from corroborate.treesitter import available, best_resolver
+          assert available(), 'tree-sitter extra installed but not importable'
+          assert type(best_resolver()).__name__ == 'TreeSitterSymbolResolver'
+          print('tree-sitter backend active')
+          "
+
   package:
     runs-on: ubuntu-latest
     steps:

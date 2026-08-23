@@ -68,10 +68,15 @@ Tier 1 has no dependencies and never will — maintainers running this on untrus
 should not have to audit a dependency tree to do it.
 
 ```sh
-pipx install corroborate     # or: pip install corroborate
+pipx install corroborate               # zero dependencies
+pipx install "corroborate[treesitter]" # optional: parse instead of pattern-match
 ```
 
-Runs on Python 3.10+.
+Runs on Python 3.10+. The optional extra swaps regex symbol matching for a real parser,
+which resolves declaration forms patterns cannot reach — enum constants defined through
+macro indirection, for one. It is selected automatically when importable, and measurably
+more accurate, but the default stays dependency-free on purpose: a maintainer running this
+on untrusted reports should not have to audit a dependency tree first.
 
 ## Use
 
@@ -160,16 +165,31 @@ Four causes, each now fixed and pinned by a regression test built from the actua
 - schemeless URLs read as paths — `example.com/moo2.txt`
 - the date `20190808` parsed as a commit SHA
 
-Current rate on that corpus: **30.3% not found, of which 19.7% is unexplained.** That
-second number is the one that matters. A miss carrying a hint — "a file of that name
-exists at `lib/hpack.c`" — is useful to everyone. A bare miss on an honest report is what
-gets the tool uninstalled.
+Current rate on that corpus: **26.9% not found, of which 13.4% is unexplained** (with the
+tree-sitter backend; 14.9% with the zero-dependency default). That second number is the
+one that matters. A miss carrying a hint — "a file of that name exists at `lib/hpack.c`" —
+is useful to everyone. A bare miss on an honest report is what gets the tool uninstalled.
 
-Some of the remainder is the tool being right: `lib/doh.c`, `curl_formparse` and
-`curl_easy_options` genuinely are absent from curl at HEAD, so those are real
-documentation drift. The rest is known and tractable — build-system identifiers
-(`find_package`), system calls (`fork`), and constants defined through macro indirection
-(`CURLOPT_SSLVERSION`), which is the case a tree-sitter backend fixes.
+Most of the remainder is the tool being right. `curl_easy_options`, `curl_formparse`,
+`dohprobe` and `readwrite_data` genuinely are absent from curl at HEAD, and `ldap_bind_s`
+and `lwip/opt.h` belong to other projects — that is real documentation drift, correctly
+found.
+
+### False verification is the worse failure
+
+The benchmark counts unresolved claims, so it barely registers the opposite error:
+corroborating a claim against something that is not a declaration. Measured on curl, two
+patterns were silently blessing fabricated claims —
+
+```c
+ * memory released by realloc() before otherwise would log it.   /* a comment */
+   return realloc(ptr, size);                                    /* a call site */
+```
+
+— both of which the regex resolver was reporting as declarations of `realloc`. Comments
+are now stripped before matching, call sites are rejected, and C declarations must begin
+at column zero with their return type. A claim is never corroborated by prose that merely
+mentions it, including prose inside the code.
 
 ## Status
 

@@ -83,6 +83,14 @@ _SYMBOL_STOPWORDS = frozenset(
         "if", "for", "while", "switch", "return", "sizeof", "and", "or", "not",
         "in", "is", "the", "a", "an", "see", "e.g", "i.e", "note", "eg", "ie",
         "function", "method", "example", "print", "assert", "int", "char", "void",
+        # Language keywords. These reach the extractor from code fences and read
+        # as calls because they are routinely followed by a parenthesis.
+        "else", "elif", "case", "do", "goto", "break", "continue", "struct",
+        "enum", "union", "static", "const", "class", "def", "try", "except",
+        "finally", "with", "import", "from", "public", "private", "protected",
+        "new", "delete", "throw", "catch", "typedef", "extern", "unsigned",
+        "signed", "long", "short", "float", "double", "bool", "auto", "var",
+        "let", "func", "fn", "impl", "match", "use", "mod", "pub", "defer",
     }
 )
 

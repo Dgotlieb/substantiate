@@ -41,7 +41,11 @@ class SymbolResolver(Protocol):
 
 # {extension: [pattern templates]}. "{n}" is replaced with the escaped symbol.
 _DECLARATIONS: dict[str, list[str]] = {
-    "c": [r"^[\w\s\*]*?\b{n}\s*\(", r"^\s*#\s*define\s+{n}\b"],
+    # The line must begin with a letter: a C definition starts at column zero
+    # with its return type, while an indented "Curl_hash_init(&h, 7);" is a
+    # call. Without the anchor every call at statement start read as a
+    # declaration and silently verified claims that nothing declares.
+    "c": [r"^[A-Za-z_][\w\s\*]*?\b{n}\s*\(", r"^\s*#\s*define\s+{n}\b"],
     "py": [r"^\s*(?:async\s+)?def\s+{n}\s*\(", r"^\s*class\s+{n}\b"],
     "js": [
         r"\bfunction\s*\*?\s*{n}\s*\(",
@@ -73,6 +77,51 @@ def _dialect(ext: str) -> str | None:
     return _ALIASES.get(ext)
 
 
+_C_LIKE = frozenset({"c", "js", "go", "rs", "java", "php"})
+
+_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_LINE_COMMENT_C = re.compile(r"//[^\n]*")
+_LINE_COMMENT_HASH = re.compile(r"#[^\n]*")
+
+# A symbol preceded by one of these on the same line is being *called* or
+# tested, not declared. Without this, "return realloc(ptr, size);" reads as a
+# declaration of realloc.
+_STATEMENT_KEYWORDS = frozenset(
+    {"return", "if", "while", "for", "switch", "sizeof", "else", "case", "do",
+     "goto", "and", "or", "not", "in", "assert", "yield", "await", "elif"}
+)
+
+
+def _strip_comments(content: str, dialect: str) -> str:
+    """Blank out comments, preserving offsets so reported line numbers stay true.
+
+    Measured on curl, comments were the single largest source of false
+    verifications: "* memory released by realloc() before" was being read as a
+    declaration of realloc. A claim must never be corroborated by prose that
+    merely mentions it -- including prose inside the code itself.
+    """
+    def blank(match: re.Match) -> str:
+        return re.sub(r"[^\n]", " ", match.group(0))
+
+    if dialect in _C_LIKE:
+        content = _BLOCK_COMMENT.sub(blank, content)
+        content = _LINE_COMMENT_C.sub(blank, content)
+    elif dialect in ("py", "rb"):
+        content = _LINE_COMMENT_HASH.sub(blank, content)
+    return content
+
+
+def _preceded_by_keyword(content: str, start: int) -> bool:
+    line_start = content.rfind("\n", 0, start) + 1
+    before = content[line_start:start].rstrip()
+    if not before:
+        return False
+    if before.endswith(("=", ",", "(", "&", "!", "+", "-", "?", ":", "|")):
+        return True
+    token = re.split(r"[^A-Za-z_]", before)[-1]
+    return token in _STATEMENT_KEYWORDS
+
+
 class RegexSymbolResolver:
     """Dependency-free declaration matching. Conservative by construction:
     it prefers missing a real declaration to inventing one."""
@@ -98,44 +147,75 @@ class RegexSymbolResolver:
                     re.compile(p.format(n=re.escape(base)), re.MULTILINE)
                     for p in _DECLARATIONS[dialect]
                 ]
-            content = repo.read(path)
-            if not content:
+            raw = repo.read(path)
+            if not raw:
                 continue
-            for pattern in compiled[dialect]:
-                m = pattern.search(content)
-                if m:
-                    hits.append(Location(path, content.count("\n", 0, m.start()) + 1))
-                    break
+            content = _strip_comments(raw, dialect)
+            location = self._first_declaration(content, compiled[dialect], base, path)
+            if location is not None:
+                hits.append(location)
         return hits
+
+    @staticmethod
+    def _first_declaration(content, patterns, base, path) -> Location | None:
+        for pattern in patterns:
+            for m in pattern.finditer(content):
+                # The patterns embed the literal name, so its offset inside the
+                # match locates the symbol itself rather than the type in front
+                # of it -- which is what the call-site check needs.
+                offset = m.group(0).find(base)
+                symbol_at = m.start() + (offset if offset >= 0 else 0)
+                if _preceded_by_keyword(content, symbol_at):
+                    continue
+                return Location(path, content.count("\n", 0, m.start()) + 1)
+        return None
 
     def near_misses(self, repo: Repo, name: str, limit: int = 3) -> list[str]:
         """Declared symbols that differ only by case or are a superstring --
-        the usual shape of a genuine report citing a renamed function."""
-        base = re.split(r"::|->|\.", name)[-1].lower()
+        the usual shape of a genuine report citing a renamed function.
+
+        Candidates must be *declarations*, found the same way ``find`` finds
+        them. An earlier version matched any identifier before a parenthesis,
+        which picked up call sites and string literals and could return the
+        queried symbol itself: a report was told its symbol was undeclared and,
+        in the same breath, that the closest declared symbol was that symbol. A
+        hint that contradicts its own verdict is worse than no hint.
+        """
+        base = re.split(r"::|->|\.", name)[-1]
         if len(base) < 4:
             return []
+        base_low = base.lower()
         found: set[str] = set()
-        ident = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]{3,})\s*\(")
-        # A near miss must contain the symbol as a substring, so the same grep
-        # prefilter applies -- case-insensitively, since case drift is one of
-        # the misses worth catching.
         for path in repo.grep_files(base, ignore_case=True):
             ext = path.rsplit(".", 1)[-1] if "." in path else ""
-            if _dialect(ext) is None:
+            dialect = _dialect(ext)
+            if dialect is None:
                 continue
-            content = repo.read(path)
-            if not content:
+            raw = repo.read(path)
+            if not raw:
                 continue
-            for m in ident.finditer(content):
-                cand = m.group(1)
-                low = cand.lower()
-                if low == base and cand != base:
-                    found.add(cand)
-                elif base in low and low != base and abs(len(low) - len(base)) <= 8:
-                    found.add(cand)
+            for declared in self._declared_names(_strip_comments(raw, dialect), dialect):
+                low = declared.lower()
+                if low == base_low and declared != base:
+                    found.add(declared)  # differs only by case
+                elif base_low in low and low != base_low and abs(len(low) - len(base_low)) <= 8:
+                    found.add(declared)  # renamed by prefix or suffix
                 if len(found) >= limit:
                     return sorted(found)
         return sorted(found)
+
+    @staticmethod
+    def _declared_names(content: str, dialect: str) -> set[str]:
+        """Every symbol declared in ``content``, using the same patterns as
+        ``find`` with the name slot opened up to a capture group."""
+        names: set[str] = set()
+        for template in _DECLARATIONS[dialect]:
+            pattern = re.compile(
+                template.format(n=r"(?P<sym>[A-Za-z_][A-Za-z0-9_]*)"), re.MULTILINE
+            )
+            for m in pattern.finditer(content):
+                names.add(m.group("sym"))
+        return names
 
 
 DEFAULT_RESOLVER = RegexSymbolResolver()
