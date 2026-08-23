@@ -183,6 +183,7 @@ anything flagged there is either genuine drift or a bug in this tool.
 
 ```sh
 python3 benchmarks/false_positives.py ~/src/curl docs --limit 150
+python3 benchmarks/real_advisories.py ~/src/curl
 ```
 
 Against curl (4,449 files), the first run marked **54.9%** of Tier 1 claims as not found.
@@ -194,16 +195,43 @@ Four causes, each now fixed and pinned by a regression test built from the actua
 - schemeless URLs read as paths — `example.com/moo2.txt`
 - the date `20190808` parsed as a commit SHA
 
-Current rates, both with the tree-sitter backend:
+Current rates, with the tree-sitter backend:
 
 | Corpus | Claims | Not found | Unexplained |
 |---|---|---|---|
-| curl `docs/` (C, 4,449 files) | 67 | 26.9% | **13.4%** |
-| urllib3 `docs/` (Python) | 21 | 14.3% | **9.5%** |
+| curl advisories, at the affected release | 129 | 29.5% | **24.0%** |
+| curl advisories, at HEAD | 124 | 13.7% | **7.3%** |
+| curl `docs/` (C, 4,449 files) | 1,165 | 40.7% | **32.0%** |
+| urllib3 `docs/` (Python) † | 21 | 14.3% | **9.5%** |
+
+† Measured before named constants were extracted, and not re-measured since. Treat it
+as a floor rather than a current figure.
 
 The unexplained column is the one that matters. A miss carrying a hint — "a file of that
 name exists at `lib/hpack.c`" — is useful to everyone. A bare miss on an honest report is
 what gets the tool uninstalled.
+
+Read that column with one caveat: it counts misses that carry no hint, so a backend that
+resolves the same claims but explains fewer of them scores worse. Measured on the
+advisories at HEAD, the regex resolver reported fewer unexplained misses than tree-sitter
+while resolving strictly less, purely because it offers near-miss hints where tree-sitter
+offers none. The column tracks the experience of the person reading the report, which is
+what it is for, but it is not a measure of resolution on its own.
+
+The two advisory rows are the workload the tool actually exists for, and were added after
+the documentation corpora had already been tuned against. They immediately showed what
+documentation could not: real security reports are prose about behaviour, naming the API
+constant almost every time and a file path or an internal function name almost never.
+Extraction found three checkable claims across twenty-five advisories until named
+constants were extracted at all.
+
+That change is also why the curl `docs/` row moved from 67 claims to 1,165. Documentation
+for a C project is largely build instructions, and once constants were claimed, every
+documented build variable became a claim. Most now resolve — the resolver reads
+CMakeLists.txt and the project's find modules, where those options are genuinely declared
+— and constants in namespaces the repository never declares into are skipped rather than
+reported, since `BROTLI_USE_STATIC_LIBS` belongs to brotli. The rate is still well above
+where it sat before constants existed, and driving it down is the open work.
 
 Adding the second corpus was worth more than any amount of tuning against the first.
 Python documentation is written in dotted calls, and `logging.getLogger`,
@@ -213,9 +241,10 @@ None of them is a claim that the project declares anything. Attributes rooted ou
 repository now resolve as skipped, and the fixture repository is no longer C-only.
 
 Most of the remainder is the tool being right. `curl_easy_options`, `curl_formparse`,
-`dohprobe` and `readwrite_data` genuinely are absent from curl at HEAD, and `ldap_bind_s`
-and `lwip/opt.h` belong to other projects — that is real documentation drift, correctly
-found.
+`dohprobe` and `readwrite_data` genuinely are absent from curl at HEAD, and
+`CURLOPT_CONNECTIMEOUT` is documentation drift — the option is spelled `CONNECTTIMEOUT`.
+Symbols owned by libc, Win32, OpenSSL and OpenLDAP, `ldap_bind_s` among them, are skipped
+rather than reported: a report naming one is not claiming this project declares it.
 
 ### False verification is the worse failure
 
