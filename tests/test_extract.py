@@ -92,11 +92,35 @@ class TestRealWorldFalsePositives(unittest.TestCase):
 
     def test_a_real_call_still_extracts(self):
         # The precision rules must not silence the thing the tool is for.
+        # CURLOPT_URL comes along as a named constant, which is the point:
+        # a real advisory names the API far more often than it names a file.
         text = "Fix Curl_hpack_decode() and curl_easy_setopt(CURLOPT_URL, url)."
         self.assertEqual(
             sorted(values(text, ClaimKind.SYMBOL, "name")),
-            ["Curl_hpack_decode", "curl_easy_setopt"],
+            ["CURLOPT_URL", "Curl_hpack_decode", "curl_easy_setopt"],
         )
+
+
+class TestConstants(unittest.TestCase):
+    """Named constants are the most-cited checkable thing in a real advisory."""
+
+    def test_constants_are_extracted_without_parentheses(self):
+        text = "It bypasses CURLOPT_SSH_KNOWNHOSTS and CURLOPT_SSH_HOST_PUBLIC_KEY_SHA256."
+        self.assertEqual(
+            sorted(values(text, ClaimKind.SYMBOL, "name")),
+            ["CURLOPT_SSH_HOST_PUBLIC_KEY_SHA256", "CURLOPT_SSH_KNOWNHOSTS"],
+        )
+
+    def test_acronyms_are_not_constants(self):
+        text = "Connect over SSH or SFTP using TLS, then fetch the URL via HTTP."
+        self.assertEqual(kinds(text, ClaimKind.SYMBOL), [])
+
+    def test_environment_variables_are_not_claims_about_the_repository(self):
+        text = "Set HTTP_PROXY and LD_LIBRARY_PATH before running."
+        self.assertEqual(kinds(text, ClaimKind.SYMBOL), [])
+
+    def test_short_underscored_capitals_are_ignored(self):
+        self.assertEqual(kinds("Use A_B or X_Y here.", ClaimKind.SYMBOL), [])
 
     def test_a_real_path_still_extracts(self):
         self.assertEqual(kinds("See lib/vtls/openssl.c for details.", ClaimKind.PATH),

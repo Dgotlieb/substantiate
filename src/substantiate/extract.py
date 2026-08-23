@@ -68,6 +68,16 @@ _SYMBOL = re.compile(
     r"\b([A-Za-z_][A-Za-z0-9_]*(?:(?:::|->|\.)[A-Za-z_][A-Za-z0-9_]*)*)\(\s*(\))?"
 )
 
+# Named constants: CURLOPT_SSH_KNOWNHOSTS, CURLE_PEER_FAILED_VERIFICATION,
+# SSL_VERIFYPEER. Measured against curl's 206 published advisories, these are
+# the most-cited checkable thing in a real security report by a wide margin --
+# advisories describe behaviour in prose and name the API, rather than pointing
+# at files and line numbers the way a fabricated report tends to.
+#
+# Requiring an underscore is what separates an identifier from an acronym: SSH,
+# URL, TLS and SFTP are prose, CURLOPT_SSH_KNOWNHOSTS is a declaration.
+_CONSTANT = re.compile(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b")
+
 _VERSION_RANGE = re.compile(
     r"\bv?(\d+\.\d+(?:\.\d+)?)\s*(?:-|–|—|to|through|thru|up\s+to)\s*v?(\d+\.\d+(?:\.\d+)?)\b",
     re.IGNORECASE,
@@ -108,6 +118,18 @@ def _looks_like_symbol(name: str, empty_parens: bool = False) -> bool:
     # treating them as undeclared functions is the single largest source of
     # false findings against honest documentation.
     return base[0].islower() and any(c.isupper() for c in base)
+
+
+# Underscored capitals that are conventions rather than declarations.
+_CONSTANT_STOPWORDS = frozenset(
+    {
+        "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "FTP_PROXY",
+        "LD_LIBRARY_PATH", "LD_PRELOAD", "DYLD_LIBRARY_PATH", "PKG_CONFIG_PATH",
+        "PATH_MAX", "NAME_MAX", "SSL_CERT_FILE", "SSL_CERT_DIR", "TMPDIR",
+        "GITHUB_TOKEN", "HOME_DIR", "USER_AGENT", "CONTENT_TYPE",
+        "CONTENT_LENGTH", "TRANSFER_ENCODING", "SET_COOKIE", "TODO_LIST",
+    }
+)
 
 
 def _looks_like_host(path: str) -> bool:
@@ -200,7 +222,14 @@ def extract(text: str) -> list[Claim]:
         attribute = start > 0 and text[start - 1] == "."
         add(ClaimKind.SYMBOL, m, {"name": name, "attribute": attribute}, span=m.span(1))
 
-    # 6. Versions: ranges emit both endpoints, since both are separately checkable.
+    # 6. Named constants, after calls so "FOO_BAR()" is claimed once as a symbol.
+    for m in _CONSTANT.finditer(text):
+        name = m.group(1)
+        if len(name) < 6 or name in _CONSTANT_STOPWORDS:
+            continue
+        add(ClaimKind.SYMBOL, m, {"name": name, "attribute": False, "constant": True})
+
+    # 7. Versions: ranges emit both endpoints, since both are separately checkable.
     for m in _VERSION_RANGE.finditer(text):
         for group in (1, 2):
             add(ClaimKind.VERSION, m, {"version": m.group(group)}, span=m.span(group))
