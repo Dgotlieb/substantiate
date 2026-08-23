@@ -76,6 +76,28 @@ typedef enum {
 #endif
 """
 
+# Build-system declarations. Documentation for a C project is largely build
+# instructions, and its options are declared here rather than in any source
+# file -- so a resolver that only reads C reports every documented build
+# variable as undeclared.
+CMAKELISTS = """\
+cmake_minimum_required(VERSION 3.10)
+project(fixture C)
+
+option(FIXTURE_BUILD_TESTS "Build the test suite" ON)
+OPTION(FIXTURE_LEGACY_UPPERCASE "CMake commands are case-insensitive" OFF)
+set(FIXTURE_DEFAULT_TIMEOUT 30)
+
+# FIXTURE_ONLY_IN_A_COMMENT is documented here but never declared.
+"""
+
+FIND_FIXTURE_CMAKE = """\
+# - `FIXTURE_SSL_LIBRARY`: Absolute path to the fixture SSL library.
+
+find_path(FIXTURE_SSL_INCLUDE_DIR "fixture/ssl.h")
+find_library(FIXTURE_SSL_LIBRARY NAMES "fixturessl")
+"""
+
 TOOL_MAIN_C = """\
 #include "tool_main.h"
 
@@ -134,6 +156,9 @@ def build(root: Path | None = None) -> Path:
     (root / "lib" / "http2.c").write_text(HTTP2_C + "\n" + padding + "\n")
     (root / "lib" / "hpack.c").write_text(HPACK_C)
     (root / "lib" / "options.h").write_text(OPTIONS_H)
+    (root / "CMakeLists.txt").write_text(CMAKELISTS)
+    (root / "CMake").mkdir(parents=True, exist_ok=True)
+    (root / "CMake" / "FindFixture.cmake").write_text(FIND_FIXTURE_CMAKE)
     (root / "lib" / "http2.h").write_text("#ifndef HTTP2_H\n#define HTTP2_H\n#endif\n")
     (root / "src" / "tool_main.c").write_text(TOOL_MAIN_C)
     (root / "lib" / "session.py").write_text(SESSION_PY)

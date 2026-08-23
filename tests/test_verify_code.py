@@ -345,3 +345,71 @@ class TestForeignLibraries(TierOneCase):
         v = self._only("The handler calls siglongjmp() from the alarm.")
         self.assertIs(v.status, Status.SKIPPED)
         self.assertIn("C standard library", v.detail)
+
+
+class TestBuildSystemDeclarations(TierOneCase):
+    """Build variables are declared in the build system, not in any source file.
+
+    Documentation for a C project is largely build instructions. Measured on
+    curl's docs/, every documented CMake option -- BUILD_SHARED_LIBS,
+    BROTLI_INCLUDE_DIR, CARES_LIBRARY and hundreds more -- was reported as an
+    undeclared symbol, because the resolver read C and nothing else. They are
+    real declarations in CMakeLists.txt and the project's find modules.
+    """
+
+    def _only(self, text):
+        verdicts = check(text, self.repo).verdicts
+        self.assertEqual(len(verdicts), 1, [v.claim.raw for v in verdicts])
+        return verdicts[0]
+
+    def test_option_is_a_declaration(self):
+        v = self._only("Set FIXTURE_BUILD_TESTS to OFF to skip them.")
+        self.assertIs(v.status, Status.VERIFIED)
+        self.assertIn("CMakeLists.txt", v.detail)
+
+    def test_set_is_a_declaration(self):
+        v = self._only("The default is FIXTURE_DEFAULT_TIMEOUT seconds.")
+        self.assertIs(v.status, Status.VERIFIED)
+
+    def test_cmake_commands_are_case_insensitive(self):
+        v = self._only("Pass FIXTURE_LEGACY_UPPERCASE to opt in.")
+        self.assertIs(v.status, Status.VERIFIED)
+
+    def test_find_library_and_find_path_declare_their_result(self):
+        for name in ("FIXTURE_SSL_LIBRARY", "FIXTURE_SSL_INCLUDE_DIR"):
+            with self.subTest(name=name):
+                v = self._only(f"Point {name} at your build.")
+                self.assertIs(v.status, Status.VERIFIED)
+                self.assertIn(".cmake", v.detail)
+
+    def test_a_comment_still_does_not_declare_anything(self):
+        # The rule that held for C holds here: prose mentioning a name, even
+        # inside the build file, must not substantiate a claim about it.
+        v = self._only("Configure FIXTURE_ONLY_IN_A_COMMENT before building.")
+        self.assertIsNot(v.status, Status.VERIFIED)
+
+
+class TestReservedNamespaces(TierOneCase):
+    """Names a tool reserves for itself are that tool's, not the project's.
+
+    CMake reserves the CMAKE_ prefix for its own variables. curl's build
+    documentation is full of them -- CMAKE_INSTALL_PREFIX, CMAKE_BUILD_TYPE,
+    CMAKE_C_FLAGS -- and none is a claim that curl declares anything.
+    """
+
+    def _only(self, text):
+        verdicts = check(text, self.repo).verdicts
+        self.assertEqual(len(verdicts), 1, [v.claim.raw for v in verdicts])
+        return verdicts[0]
+
+    def test_reserved_cmake_variables_are_skipped(self):
+        for name in ("CMAKE_INSTALL_PREFIX", "CMAKE_BUILD_TYPE", "CMAKE_C_FLAGS"):
+            with self.subTest(name=name):
+                v = self._only(f"Pass {name} when configuring.")
+                self.assertIs(v.status, Status.SKIPPED)
+                self.assertIn("CMake", v.detail)
+
+    def test_a_project_variable_that_merely_starts_similarly_is_still_checked(self):
+        # The prefix must be the reserved one, not any name beginning with it.
+        v = self._only("Set FIXTURE_BUILD_TESTS to OFF.")
+        self.assertIs(v.status, Status.VERIFIED)

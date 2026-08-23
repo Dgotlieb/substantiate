@@ -143,11 +143,23 @@ except AttributeError:  # pragma: no cover - Python < 3.10
     PYTHON_STDLIB = frozenset()
 
 
+# Prefixes a tool reserves for its own names. CMake documents CMAKE_ as
+# reserved, and a project's build instructions cite those variables constantly
+# without declaring any of them. Kept separate from the exact-name sets above
+# because a reserved namespace is a rule, not a list to keep up with.
+_RESERVED_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("CMAKE_", "reserved by CMake"),
+)
+
+
 def origin(name: str) -> str | None:
     """Where ``name`` comes from, or None if it is not a known external."""
     base = name.rsplit("::", 1)[-1].rsplit(".", 1)[-1].rsplit("->", 1)[-1]
     for names, label in _SOURCES:
         if base in names:
+            return label
+    for prefix, label in _RESERVED_PREFIXES:
+        if base.startswith(prefix) and len(base) > len(prefix):
             return label
     return None
 

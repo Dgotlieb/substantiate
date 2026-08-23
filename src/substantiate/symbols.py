@@ -14,6 +14,7 @@ else -- extraction, verdicts, reporting -- is unchanged. See CONTRIBUTING.md.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -64,6 +65,18 @@ _DECLARATIONS: dict[str, list[str]] = {
     "java": [r"\b(?:class|interface|enum)\s+{n}\b", r"\b{n}\s*\([^)]*\)\s*(?:throws[^{{]*)?\{{"],
     "rb": [r"^\s*def\s+(?:self\.)?{n}\b", r"^\s*(?:class|module)\s+{n}\b"],
     "php": [r"\bfunction\s+{n}\s*\(", r"\bclass\s+{n}\b"],
+    # CMake. A C project's documentation is largely build instructions, and its
+    # options are declared here rather than in any source file. Commands are
+    # case-insensitive in CMake, hence the scoped flag. Anchored at line start
+    # so a name merely passed to some other command is not read as declaring
+    # it -- the same call-site rule the C patterns enforce.
+    "cmake": [
+        r"^\s*(?i:option)\s*\(\s*{n}\b",
+        r"^\s*(?i:set)\s*\(\s*{n}\b",
+        r"^\s*(?i:find_path)\s*\(\s*{n}\b",
+        r"^\s*(?i:find_library)\s*\(\s*{n}\b",
+        r"^\s*(?i:find_program)\s*\(\s*{n}\b",
+    ],
 }
 
 # Extensions that share a dialect with a primary language above.
@@ -73,6 +86,19 @@ _ALIASES = {
     "mjs": "js", "cjs": "js", "ts": "js", "tsx": "js", "jsx": "js",
     "kt": "java", "scala": "java", "cs": "java",
 }
+
+
+def _dialect_for_path(path: str) -> str | None:
+    """The dialect a file speaks, by name first and extension second.
+
+    CMakeLists.txt is the file that matters most here and its extension is
+    "txt", which speaks nothing.
+    """
+    base = path.rsplit("/", 1)[-1]
+    if base.lower() == "cmakelists.txt":
+        return "cmake"
+    ext = path.rsplit(".", 1)[-1] if "." in base else ""
+    return _dialect(ext)
 
 
 def _dialect(ext: str) -> str | None:
@@ -111,7 +137,7 @@ def _strip_comments(content: str, dialect: str) -> str:
     if dialect in _C_LIKE:
         content = _BLOCK_COMMENT.sub(blank, content)
         content = _LINE_COMMENT_C.sub(blank, content)
-    elif dialect in ("py", "rb"):
+    elif dialect in ("py", "rb", "cmake"):
         content = _LINE_COMMENT_HASH.sub(blank, content)
     return content
 
@@ -145,31 +171,52 @@ class RegexSymbolResolver:
         base = re.split(r"::|->|\.", name)[-1]
         if not base:
             return []
-        compiled: dict[str, list[re.Pattern]] = {}
         hits: list[Location] = []
         # One grep, then read only the files that could possibly match. Walking
         # the whole tree here is what made this unusable on a real repository.
         for path in repo.grep_files(base):
-            ext = path.rsplit(".", 1)[-1] if "." in path else ""
-            dialect = _dialect(ext)
-            if dialect is None:
-                continue
-            if dialect not in compiled:
-                compiled[dialect] = [
-                    re.compile(p.format(n=re.escape(base)), re.MULTILINE)
-                    for p in _DECLARATIONS[dialect]
-                ]
-            raw = repo.read(path)
-            if not raw:
-                continue
-            content = _strip_comments(raw, dialect)
-            location = self._first_declaration(content, compiled[dialect], base, path)
+            location = self.find_in(repo, base, path)
             if location is not None:
                 hits.append(location)
         return hits
 
+    @lru_cache(maxsize=None)
+    def _compiled(self, dialect: str, base: str) -> tuple[re.Pattern, ...]:
+        return tuple(
+            re.compile(p.format(n=re.escape(base)), re.MULTILINE)
+            for p in _DECLARATIONS[dialect]
+        )
+
+    def find_in(self, repo: Repo, base: str, path: str) -> Location | None:
+        """Where ``base`` is declared in one file, or None.
+
+        Exposed per-file so a backend that parses some languages and not others
+        can defer the rest here rather than skipping them.
+        """
+        dialect = _dialect_for_path(path)
+        if dialect is None:
+            return None
+        raw = repo.read(path)
+        if not raw:
+            return None
+        content = _strip_comments(raw, dialect)
+        # The call-site guard asks whether a name sits where an argument would.
+        # In CMake the declared name always does -- option(BUILD_TESTING ...) --
+        # and the patterns already carry the proof, since each is anchored at
+        # line start to the specific command that declares. Applying the guard
+        # there would reject every real declaration.
+        return self._first_declaration(
+            content,
+            self._compiled(dialect, base),
+            base,
+            path,
+            guard_call_sites=dialect != "cmake",
+        )
+
     @staticmethod
-    def _first_declaration(content, patterns, base, path) -> Location | None:
+    def _first_declaration(
+        content, patterns, base, path, guard_call_sites: bool = True
+    ) -> Location | None:
         for pattern in patterns:
             for m in pattern.finditer(content):
                 # The patterns embed the literal name, so its offset inside the
@@ -177,7 +224,7 @@ class RegexSymbolResolver:
                 # of it -- which is what the call-site check needs.
                 offset = m.group(0).find(base)
                 symbol_at = m.start() + (offset if offset >= 0 else 0)
-                if _preceded_by_keyword(content, symbol_at):
+                if guard_call_sites and _preceded_by_keyword(content, symbol_at):
                     continue
                 return Location(path, content.count("\n", 0, m.start()) + 1)
         return None

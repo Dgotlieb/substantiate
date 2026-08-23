@@ -192,8 +192,13 @@ class TreeSitterSymbolResolver:
         for path in repo.grep_files(base):
             decls = self._declarations(repo, path)
             if decls is None:
-                # Not a language this backend parses. Its coverage is a superset
-                # of the regex resolver's, so there is nothing to fall back to.
+                # Not a language this backend parses. Its coverage is no longer
+                # a superset of the regex resolver's -- that one reads CMake,
+                # where a C project declares its build options -- so the file
+                # is handed over rather than dropped.
+                location = self.fallback.find_in(repo, base, path)
+                if location is not None:
+                    hits.append(location)
                 continue
             for declared, line in decls:
                 if declared == base:
