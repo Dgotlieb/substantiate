@@ -57,6 +57,25 @@ void Curl_hpack_cleanup(struct hpack_ctx *ctx)
 }
 """
 
+# Enum constants, in the two shapes a real C project writes them. curl declares
+# every one of its options through a macro, which no regex can tell apart from a
+# call site passing the same name as an argument -- so this fixture carries both
+# the plain and the macro-wrapped form.
+OPTIONS_H = """\
+#ifndef OPTIONS_H
+#define OPTIONS_H
+
+#define FIXTURE_OPT(na, t, nu) na = ((t) + (nu))
+
+typedef enum {
+  FIXTURE_OPT_VERIFYPEER = 64,
+  FIXTURE_OPT_TIMEOUT = 65,
+  FIXTURE_OPT(FIXTURE_OPT_MAXCONNECTS, 0, 66),
+} fixture_option;
+
+#endif
+"""
+
 TOOL_MAIN_C = """\
 #include "tool_main.h"
 
@@ -114,6 +133,7 @@ def build(root: Path | None = None) -> Path:
     padding = "\n".join(f"/* line {i} */" for i in range(1, 60))
     (root / "lib" / "http2.c").write_text(HTTP2_C + "\n" + padding + "\n")
     (root / "lib" / "hpack.c").write_text(HPACK_C)
+    (root / "lib" / "options.h").write_text(OPTIONS_H)
     (root / "lib" / "http2.h").write_text("#ifndef HTTP2_H\n#define HTTP2_H\n#endif\n")
     (root / "src" / "tool_main.c").write_text(TOOL_MAIN_C)
     (root / "lib" / "session.py").write_text(SESSION_PY)

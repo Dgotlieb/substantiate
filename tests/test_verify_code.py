@@ -223,3 +223,125 @@ class TestRepoBehaviour(TierOneCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBackendLimits(TierOneCase):
+    """A backend that cannot decide a claim must say so, not report a miss.
+
+    The regex resolver knows two shapes of C declaration: a function definition
+    at column zero, and a #define. An enum constant is neither, and the macro
+    form is indistinguishable by pattern from a call site passing the same name
+    as an argument -- matching it would substantiate fabricated claims, which is
+    the worse failure. So the honest answer is that this backend cannot say.
+    """
+
+    def verdict_for(self, text, name, resolver):
+        from substantiate.verify import check
+        for v in check(text, self.repo, resolver=resolver).verdicts:
+            if v.claim.data.get("name") == name:
+                return v
+        raise AssertionError(f"no verdict for {name}")
+
+    def test_regex_backend_skips_constants_rather_than_reporting_a_miss(self):
+        from substantiate.symbols import DEFAULT_RESOLVER
+        v = self.verdict_for(
+            "The flaw affects FIXTURE_OPT_VERIFYPEER handling.",
+            "FIXTURE_OPT_VERIFYPEER",
+            DEFAULT_RESOLVER,
+        )
+        self.assertIs(v.status, Status.SKIPPED)
+
+    def test_the_skip_names_what_would_answer_the_question(self):
+        from substantiate.symbols import DEFAULT_RESOLVER
+        v = self.verdict_for(
+            "The flaw affects FIXTURE_OPT_VERIFYPEER handling.",
+            "FIXTURE_OPT_VERIFYPEER",
+            DEFAULT_RESOLVER,
+        )
+        self.assertIsNotNone(v.hint)
+        self.assertIn("treesitter", v.hint)
+
+    def test_a_define_still_verifies_under_the_regex_backend(self):
+        # The skip must not swallow constants this backend genuinely can resolve.
+        from substantiate.symbols import DEFAULT_RESOLVER
+        v = self.verdict_for(
+            "Guarded by FIXTURE_OPT which expands the option.",
+            "FIXTURE_OPT",
+            DEFAULT_RESOLVER,
+        )
+        self.assertIs(v.status, Status.VERIFIED)
+
+
+class TestTreeSitterConstants(TierOneCase):
+    """Tree-sitter parses, so it owns constants -- including the macro form."""
+
+    def setUp(self):
+        from substantiate import treesitter
+        if not treesitter.available():
+            self.skipTest("tree-sitter not installed")
+        self.resolver = treesitter.TreeSitterSymbolResolver()
+
+    def verdict_for(self, text, name):
+        from substantiate.verify import check
+        for v in check(text, self.repo, resolver=self.resolver).verdicts:
+            if v.claim.data.get("name") == name:
+                return v
+        raise AssertionError(f"no verdict for {name}")
+
+    def test_plain_enumerator_verifies(self):
+        v = self.verdict_for("Affects FIXTURE_OPT_TIMEOUT.", "FIXTURE_OPT_TIMEOUT")
+        self.assertIs(v.status, Status.VERIFIED)
+
+    def test_macro_wrapped_enumerator_verifies(self):
+        v = self.verdict_for("Affects FIXTURE_OPT_MAXCONNECTS.", "FIXTURE_OPT_MAXCONNECTS")
+        self.assertIs(v.status, Status.VERIFIED)
+
+    def test_a_fabricated_constant_is_still_not_found(self):
+        # The whole point: skipping must not become blanket amnesty.
+        v = self.verdict_for("Affects FIXTURE_OPT_INVENTED.", "FIXTURE_OPT_INVENTED")
+        self.assertIs(v.status, Status.NOT_FOUND)
+
+
+class TestForeignLibraries(TierOneCase):
+    """Symbols owned by platform and third-party libraries.
+
+    Every name here was an unexplained miss on curl's published advisories.
+    A report saying a bug is reached through LoadLibrary or SSL_OP_ALL is not
+    claiming curl declares them, so a miss is a false finding -- and unlike a
+    renamed internal, no near-miss hint can soften it, because the declaration
+    is in somebody else's tree.
+    """
+
+    def _only(self, text):
+        verdicts = check(text, self.repo).verdicts
+        self.assertEqual(len(verdicts), 1, [v.claim.raw for v in verdicts])
+        return verdicts[0]
+
+    def test_win32_api_is_skipped(self):
+        for call in ("LoadLibrary()", "CertGetNameString()"):
+            with self.subTest(call=call):
+                v = self._only(f"It reaches the flaw through {call}.")
+                self.assertIs(v.status, Status.SKIPPED)
+                self.assertIn("Windows API", v.detail)
+
+    def test_openssl_constant_is_skipped(self):
+        v = self._only("The build sets SSL_OP_ALL unconditionally.")
+        self.assertIs(v.status, Status.SKIPPED)
+        self.assertIn("OpenSSL", v.detail)
+
+    def test_ldap_symbols_are_skipped(self):
+        for name in ("ldap_get_attribute_ber()", "LDAP_SUCCESS"):
+            with self.subTest(name=name):
+                v = self._only(f"The handler checks {name} before continuing.")
+                self.assertIs(v.status, Status.SKIPPED)
+                self.assertIn("LDAP", v.detail)
+
+    def test_limits_macro_is_skipped(self):
+        v = self._only("The length is compared against UINT_MAX.")
+        self.assertIs(v.status, Status.SKIPPED)
+        self.assertIn("C standard library", v.detail)
+
+    def test_posix_signal_call_is_skipped(self):
+        v = self._only("The handler calls siglongjmp() from the alarm.")
+        self.assertIs(v.status, Status.SKIPPED)
+        self.assertIn("C standard library", v.detail)

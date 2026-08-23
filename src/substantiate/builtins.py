@@ -33,7 +33,7 @@ LIBC = frozenset(
         "pipe", "poll", "printf", "putenv", "qsort", "raise", "rand", "read",
         "readdir", "realloc", "recv", "recvfrom", "rename", "rewind", "rmdir",
         "select", "send", "sendto", "setjmp", "setsockopt", "setvbuf", "shutdown",
-        "signal", "sigaction", "snprintf", "socket", "socketpair", "sprintf",
+        "signal", "sigaction", "siglongjmp", "sigsetjmp", "snprintf", "socket", "socketpair", "sprintf",
         "sscanf", "stat", "strcasecmp", "strcat", "strchr", "strcmp", "strcpy",
         "strdup", "strerror", "strftime", "strlen", "strncmp", "strncpy",
         "strrchr", "strstr", "strtol", "strtoul", "symlink", "sysconf", "time",
@@ -71,8 +71,63 @@ AUTOTOOLS = frozenset(
     }
 )
 
+# Limits and width macros from <limits.h> and <stdint.h>. Advisories compare
+# lengths against these constantly; none is a claim about the project.
+C_MACROS = frozenset(
+    {
+        "CHAR_BIT", "CHAR_MAX", "CHAR_MIN", "INT_MAX", "INT_MIN", "LLONG_MAX",
+        "LLONG_MIN", "LONG_MAX", "LONG_MIN", "SCHAR_MAX", "SHRT_MAX", "SHRT_MIN",
+        "SIZE_MAX", "SSIZE_MAX", "UCHAR_MAX", "UINT_MAX", "ULLONG_MAX",
+        "ULONG_MAX", "USHRT_MAX",
+    }
+)
+
+# Win32. A portable project calls these through its own wrappers, so the bare
+# name in a report is the platform's, not the project's.
+WIN32 = frozenset(
+    {
+        "CertCloseStore", "CertFreeCertificateContext", "CertGetNameString",
+        "CertOpenStore", "CertOpenSystemStore", "CertVerifyCertificateChainPolicy",
+        "CloseHandle", "CreateFile", "CreateProcess", "CreateThread",
+        "FormatMessage", "FreeLibrary", "GetLastError", "GetModuleHandle",
+        "GetProcAddress", "LoadLibrary", "LoadLibraryEx", "LocalFree",
+        "WSACleanup", "WSAGetLastError", "WSAStartup", "WideCharToMultiByte",
+        "MultiByteToWideChar",
+    }
+)
+
+# OpenSSL, including the SSL_OP_/SSL_VERIFY_/X509_V_ constant families that
+# appear in TLS advisories more often than any function does.
+OPENSSL = frozenset(
+    {
+        "SSL_CTX_new", "SSL_CTX_set_options", "SSL_CTX_set_verify",
+        "SSL_CTX_load_verify_locations", "SSL_connect", "SSL_read", "SSL_write",
+        "SSL_get_peer_certificate", "SSL_get_verify_result", "SSL_set_tlsext_host_name",
+        "SSL_OP_ALL", "SSL_OP_NO_COMPRESSION", "SSL_OP_NO_SSLv2", "SSL_OP_NO_SSLv3",
+        "SSL_OP_NO_TICKET", "SSL_VERIFY_NONE", "SSL_VERIFY_PEER",
+        "X509_V_OK", "X509_verify_cert", "X509_free", "X509_STORE_add_cert",
+        "ERR_get_error", "ERR_error_string", "RAND_bytes", "EVP_DigestInit",
+    }
+)
+
+# OpenLDAP / winldap.
+LDAP = frozenset(
+    {
+        "ldap_bind_s", "ldap_err2string", "ldap_first_attribute", "ldap_first_entry",
+        "ldap_get_attribute_ber", "ldap_get_dn", "ldap_get_values_len", "ldap_init",
+        "ldap_memfree", "ldap_msgfree", "ldap_next_attribute", "ldap_next_entry",
+        "ldap_search_s", "ldap_simple_bind_s", "ldap_unbind_s", "ldap_url_parse",
+        "LDAP_INVALID_CREDENTIALS", "LDAP_INVALID_SYNTAX", "LDAP_NO_SUCH_OBJECT",
+        "LDAP_SIZELIMIT_EXCEEDED", "LDAP_SUCCESS",
+    }
+)
+
 _SOURCES: tuple[tuple[frozenset[str], str], ...] = (
     (LIBC, "C standard library or POSIX"),
+    (C_MACROS, "C standard library macro"),
+    (WIN32, "Windows API"),
+    (OPENSSL, "OpenSSL"),
+    (LDAP, "LDAP library"),
     (CMAKE, "CMake command"),
     (AUTOTOOLS, "Autoconf macro"),
 )

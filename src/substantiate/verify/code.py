@@ -67,6 +67,22 @@ def verify_symbol(
             claim, Status.SKIPPED, "attribute of an object the report does not name", query
         )
 
+    # A constant the active backend cannot decide. The regex resolver knows a
+    # column-zero function definition and a #define; an enum member is neither,
+    # and real projects declare their options through a macro that no pattern
+    # can tell apart from a call site passing the same name. Reporting a miss
+    # here would mark down an honest report for a limit of the install, so the
+    # verdict names the limit instead. Measured on curl's 206 published
+    # advisories, this was the whole of the remaining unexplained rate.
+    if claim.data.get("constant") and not getattr(resolver, "resolves_constants", True):
+        return Verdict(
+            claim,
+            Status.SKIPPED,
+            "named constant, which this backend cannot resolve",
+            query,
+            hint="install substantiate[treesitter] to check constants",
+        )
+
     hint = None
     misses = resolver.near_misses(repo, name)
     if misses:

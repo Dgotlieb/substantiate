@@ -160,6 +160,10 @@ class TreeSitterSymbolResolver:
     """Resolves declarations by parsing, falling back per-file to the regex
     resolver for languages tree-sitter does not cover here."""
 
+    # Enumerators are declarations in the grammar, so both the plain and the
+    # macro-wrapped form resolve without guessing from surrounding text.
+    resolves_constants = True
+
     def __init__(self, fallback: RegexSymbolResolver | None = None) -> None:
         self.fallback = fallback or DEFAULT_RESOLVER
 

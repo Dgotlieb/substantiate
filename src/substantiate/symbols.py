@@ -30,6 +30,11 @@ class Location:
 
 
 class SymbolResolver(Protocol):
+    # Whether this backend can decide a claim about a named constant. A backend
+    # that cannot must say so, so the verifier can skip rather than report a
+    # miss it has no standing to report.
+    resolves_constants: bool
+
     def find(self, repo: Repo, name: str) -> list[Location]:
         """Locations where ``name`` is *declared*. Empty when not found."""
         ...
@@ -125,6 +130,13 @@ def _preceded_by_keyword(content: str, start: int) -> bool:
 class RegexSymbolResolver:
     """Dependency-free declaration matching. Conservative by construction:
     it prefers missing a real declaration to inventing one."""
+
+    # An enum constant is neither a column-zero function definition nor a
+    # #define, and the macro form real projects use -- CURLOPT(CURLOPT_URL, ..)
+    # -- is indistinguishable by pattern from a call site passing the same name
+    # as an argument. Matching it would substantiate fabricated claims, so this
+    # backend declines the question instead. A #define still resolves normally.
+    resolves_constants = False
 
     def languages(self) -> set[str]:
         return set(_DECLARATIONS) | set(_ALIASES)
