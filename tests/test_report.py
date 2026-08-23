@@ -108,17 +108,21 @@ class TestVersionIsSingleSourced(unittest.TestCase):
     """
 
     def test_pyproject_takes_its_version_from_the_module(self):
+        # Read as text rather than parsed: tomllib is 3.11+ and this project
+        # supports 3.10 with no dependencies, so parsing it would either skip
+        # the check on the oldest supported version or add a dependency to
+        # assert a two-line invariant.
         import pathlib
-        import tomllib
+        import re
 
         root = pathlib.Path(__file__).resolve().parents[1]
-        data = tomllib.loads((root / "pyproject.toml").read_text())
-        project = data["project"]
-        self.assertNotIn(
-            "version", project, "pyproject declares a static version that can drift"
+        text = (root / "pyproject.toml").read_text()
+        project = text.split("[project]", 1)[1].split("\n[", 1)[0]
+        self.assertIsNone(
+            re.search(r"^version\s*=", project, re.MULTILINE),
+            "pyproject declares a static version that can drift from __version__",
         )
-        self.assertIn("version", project.get("dynamic", []))
-        self.assertEqual(
-            data["tool"]["setuptools"]["dynamic"]["version"]["attr"],
-            "substantiate.__version__",
+        self.assertRegex(project, r'(?m)^dynamic\s*=\s*\[\s*"version"\s*\]')
+        self.assertRegex(
+            text, r'version\s*=\s*\{\s*attr\s*=\s*"substantiate\.__version__"\s*\}'
         )
