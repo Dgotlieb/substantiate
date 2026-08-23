@@ -297,7 +297,8 @@ class TestTreeSitterConstants(TierOneCase):
         self.assertIs(v.status, Status.VERIFIED)
 
     def test_a_fabricated_constant_is_still_not_found(self):
-        # The whole point: skipping must not become blanket amnesty.
+        # The whole point: skipping must not become blanket amnesty. This is the
+        # backend that can decide the question, so it must answer it.
         v = self.verdict_for("Affects FIXTURE_OPT_INVENTED.", "FIXTURE_OPT_INVENTED")
         self.assertIs(v.status, Status.NOT_FOUND)
 
@@ -438,11 +439,18 @@ class TestForeignNamespaces(TierOneCase):
         self.assertIs(v.status, Status.SKIPPED)
         self.assertIn("BROTLI_", v.detail)
 
-    def test_fabricated_constant_in_an_owned_namespace_is_still_reported(self):
-        # The fixture declares FIXTURE_OPT_VERIFYPEER, so it owns FIXTURE_OPT_
-        # and a claim about an invented member of it is a real finding.
+    def test_an_owned_namespace_does_not_trigger_the_foreign_skip(self):
+        # The fixture declares FIXTURE_ names, so the namespace is owned and an
+        # invented member of it must not be waved through as somebody else's.
+        #
+        # What happens next is the backend's call, not this rule's: tree-sitter
+        # reports the miss, while the zero-dependency backend cannot resolve
+        # constants at all and says so. Asserting NOT_FOUND here passed only on
+        # a machine with the extra installed, and CI -- which is the plain
+        # install -- was right to reject it.
         v = self._only("Set FIXTURE_OPT_INVENTED to bypass the check.")
-        self.assertIs(v.status, Status.NOT_FOUND)
+        self.assertNotIn("namespace", v.detail)
+        self.assertIsNot(v.status, Status.VERIFIED)
 
 
 class TestDependentOption(TierOneCase):
