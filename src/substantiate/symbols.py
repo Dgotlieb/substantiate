@@ -72,6 +72,7 @@ _DECLARATIONS: dict[str, list[str]] = {
     # it -- the same call-site rule the C patterns enforce.
     "cmake": [
         r"^\s*(?i:option)\s*\(\s*{n}\b",
+        r"^\s*(?i:cmake_dependent_option)\s*\(\s*{n}\b",
         r"^\s*(?i:set)\s*\(\s*{n}\b",
         r"^\s*(?i:find_path)\s*\(\s*{n}\b",
         r"^\s*(?i:find_library)\s*\(\s*{n}\b",
@@ -246,8 +247,7 @@ class RegexSymbolResolver:
         base_low = base.lower()
         found: set[str] = set()
         for path in repo.grep_files(base, ignore_case=True):
-            ext = path.rsplit(".", 1)[-1] if "." in path else ""
-            dialect = _dialect(ext)
+            dialect = _dialect_for_path(path)
             if dialect is None:
                 continue
             raw = repo.read(path)
@@ -262,6 +262,36 @@ class RegexSymbolResolver:
                 if len(found) >= limit:
                     return sorted(found)
         return sorted(found)
+
+    def declares_namespace(self, repo: Repo, prefix: str) -> bool:
+        """Whether this repository declares any name under ``prefix``.
+
+        Ownership, not a list. Build documentation cites the options of every
+        dependency a project can be compiled against, and those namespaces are
+        somebody else's; a namespace the project itself declares into is one
+        where a missing name is a real finding.
+        """
+        return any(
+            self.declares_namespace_in(repo, prefix, path)
+            for path in repo.grep_files(prefix)
+        )
+
+    def declares_namespace_in(self, repo: Repo, prefix: str, path: str) -> bool:
+        """Whether one file declares any name under ``prefix``.
+
+        Per-file for the same reason ``find_in`` is: a backend that parses some
+        languages and not others defers the rest here.
+        """
+        dialect = _dialect_for_path(path)
+        if dialect is None:
+            return False
+        raw = repo.read(path)
+        if not raw:
+            return False
+        return any(
+            declared.startswith(prefix)
+            for declared in self._declared_names(_strip_comments(raw, dialect), dialect)
+        )
 
     @staticmethod
     def _declared_names(content: str, dialect: str) -> set[str]:

@@ -86,7 +86,7 @@ project(fixture C)
 
 option(FIXTURE_BUILD_TESTS "Build the test suite" ON)
 OPTION(FIXTURE_LEGACY_UPPERCASE "CMake commands are case-insensitive" OFF)
-set(FIXTURE_DEFAULT_TIMEOUT 30)
+set(FIXTURE_DEFAULT_TIMEOUT 30)\ncmake_dependent_option(FIXTURE_USE_TLS "Enable TLS" OFF FIXTURE_BUILD_TESTS OFF)
 
 # FIXTURE_ONLY_IN_A_COMMENT is documented here but never declared.
 """

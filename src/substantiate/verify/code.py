@@ -67,6 +67,24 @@ def verify_symbol(
             claim, Status.SKIPPED, "attribute of an object the report does not name", query
         )
 
+    # A constant whose namespace this repository never declares into. Build
+    # documentation cites the options of every dependency a project can be
+    # compiled against -- BROTLI_USE_STATIC_LIBS, AMISSL_INCLUDE_DIR -- and
+    # those belong to brotli and AmiSSL. The test is ownership rather than a
+    # list: if the project declares anything else under the same prefix it owns
+    # the namespace, so a name missing from it stays a real finding. Measured on
+    # curl's docs/, foreign namespaces were the largest remaining false class.
+    if claim.data.get("constant") and "_" in name:
+        prefix = name.split("_", 1)[0] + "_"
+        owns = getattr(resolver, "declares_namespace", None)
+        if owns is not None and not owns(repo, prefix):
+            return Verdict(
+                claim,
+                Status.SKIPPED,
+                f"constant in {prefix}, a namespace this repository does not declare",
+                query,
+            )
+
     # A constant the active backend cannot decide. The regex resolver knows a
     # column-zero function definition and a #define; an enum member is neither,
     # and real projects declare their options through a macro that no pattern

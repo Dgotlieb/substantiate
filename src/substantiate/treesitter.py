@@ -206,6 +206,18 @@ class TreeSitterSymbolResolver:
                     break
         return hits
 
+    def declares_namespace(self, repo: Repo, prefix: str) -> bool:
+        for path in repo.grep_files(prefix):
+            decls = self._declarations(repo, path)
+            if decls is None:
+                if self.fallback.declares_namespace_in(repo, prefix, path):
+                    return True
+                continue
+            for declared, _line in decls:
+                if declared.startswith(prefix):
+                    return True
+        return False
+
     def near_misses(self, repo: Repo, name: str, limit: int = 3) -> list[str]:
         base = re.split(r"::|->|\.", name)[-1]
         if len(base) < 4:

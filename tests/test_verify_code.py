@@ -413,3 +413,41 @@ class TestReservedNamespaces(TierOneCase):
         # The prefix must be the reserved one, not any name beginning with it.
         v = self._only("Set FIXTURE_BUILD_TESTS to OFF.")
         self.assertIs(v.status, Status.VERIFIED)
+
+
+class TestForeignNamespaces(TierOneCase):
+    """A constant whose namespace this repository never declares.
+
+    Build documentation cites the options of every dependency it can be
+    compiled against -- BROTLI_USE_STATIC_LIBS, AMISSL_INCLUDE_DIR,
+    CARES_USE_STATIC_LIBS. Those are somebody else's variables, and on curl's
+    docs/ they were the largest remaining class of unexplained miss.
+
+    The test is ownership, not a list: if the repository declares anything else
+    under the same prefix it owns the namespace, so a name missing from it is a
+    real finding and still reported.
+    """
+
+    def _only(self, text):
+        verdicts = check(text, self.repo).verdicts
+        self.assertEqual(len(verdicts), 1, [v.claim.raw for v in verdicts])
+        return verdicts[0]
+
+    def test_constant_in_an_unowned_namespace_is_skipped(self):
+        v = self._only("Set BROTLI_USE_STATIC_LIBS to ON.")
+        self.assertIs(v.status, Status.SKIPPED)
+        self.assertIn("BROTLI_", v.detail)
+
+    def test_fabricated_constant_in_an_owned_namespace_is_still_reported(self):
+        # The fixture declares FIXTURE_OPT_VERIFYPEER, so it owns FIXTURE_OPT_
+        # and a claim about an invented member of it is a real finding.
+        v = self._only("Set FIXTURE_OPT_INVENTED to bypass the check.")
+        self.assertIs(v.status, Status.NOT_FOUND)
+
+
+class TestDependentOption(TierOneCase):
+    def test_cmake_dependent_option_declares(self):
+        # curl declares most of its build switches this way, not with option().
+        verdicts = check("Build with FIXTURE_USE_TLS enabled.", self.repo).verdicts
+        self.assertEqual(len(verdicts), 1)
+        self.assertIs(verdicts[0].status, Status.VERIFIED)
