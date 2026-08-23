@@ -14,9 +14,9 @@ import unittest
 
 from tests import fake_repo, fixture
 
-from corroborate.repo import Repo
-from corroborate.report import BANNED_WORDS, DISCLAIMER, render
-from corroborate.verify import check
+from substantiate.repo import Repo
+from substantiate.report import BANNED_WORDS, DISCLAIMER, render
+from substantiate.verify import check
 
 FORMATS = ("terminal", "markdown", "json")
 
@@ -65,7 +65,7 @@ class TestCopyDiscipline(ReportCase):
 class TestRendering(ReportCase):
     def test_json_is_parseable_and_stable(self):
         data = json.loads(render(self.result, "json"))
-        self.assertEqual(data["tool"], "corroborate")
+        self.assertEqual(data["tool"], "substantiate")
         self.assertEqual(data["version"], 1)
         self.assertEqual(len(data["claims"]), len(self.result.verdicts))
         for claim in data["claims"]:

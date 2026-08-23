@@ -2,7 +2,7 @@
 
 A report saying ``Curl_hpack_decode()`` is claiming a *declaration* exists, not
 that a string appears somewhere. Matching the bare name would let a mention in a
-comment -- or in the report's own quoted diff -- corroborate itself, which is
+comment -- or in the report's own quoted diff -- substantiate itself, which is
 exactly the failure mode this tool exists to catch.
 
 The regex resolver below is the v0.1 default because it has no dependencies and
@@ -97,7 +97,7 @@ def _strip_comments(content: str, dialect: str) -> str:
 
     Measured on curl, comments were the single largest source of false
     verifications: "* memory released by realloc() before" was being read as a
-    declaration of realloc. A claim must never be corroborated by prose that
+    declaration of realloc. A claim must never be substantiated by prose that
     merely mentions it -- including prose inside the code itself.
     """
     def blank(match: re.Match) -> str:

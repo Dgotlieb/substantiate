@@ -39,7 +39,7 @@ jobs:
       - name: Confirm the backend is actually selected
         run: |
           python -c "
-          from corroborate.treesitter import available, best_resolver
+          from substantiate.treesitter import available, best_resolver
           assert available(), 'tree-sitter extra installed but not importable'
           assert type(best_resolver()).__name__ == 'TreeSitterSymbolResolver'
           print('tree-sitter backend active')
@@ -55,4 +55,4 @@ jobs:
       - run: python -m pip install --upgrade build
       - run: python -m build
       - run: python -m pip install dist/*.whl
-      - run: corroborate --version
+      - run: substantiate --version

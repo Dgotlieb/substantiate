@@ -1,7 +1,7 @@
 """JSON output, for maintainers wiring their own triage automation.
 
 Stable shape: adding fields is fine, renaming or removing them is a breaking
-change. Anything built on this needs to survive a `corroborate` upgrade.
+change. Anything built on this needs to survive a `substantiate` upgrade.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from . import DISCLAIMER
 def render(result: Result) -> str:
     return json.dumps(
         {
-            "tool": "corroborate",
+            "tool": "substantiate",
             "version": 1,
             "ref": result.ref,
             "repo": result.repo_path,

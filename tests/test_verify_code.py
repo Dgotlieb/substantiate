@@ -7,10 +7,10 @@ import unittest
 
 from tests import fake_repo, fixture
 
-from corroborate.claims import ClaimKind
-from corroborate.repo import Repo
-from corroborate.verdict import Status
-from corroborate.verify import check
+from substantiate.claims import ClaimKind
+from substantiate.repo import Repo
+from substantiate.verdict import Status
+from substantiate.verify import check
 
 
 class TierOneCase(unittest.TestCase):
@@ -96,7 +96,7 @@ class TestGenuineReport(TierOneCase):
 
 
 class TestDeclarationsOnly(TierOneCase):
-    """A symbol must be corroborated by a declaration and nothing else.
+    """A symbol must be substantiated by a declaration and nothing else.
 
     Measured on curl, the two biggest sources of false *verification* were
     comments ("* memory released by realloc() before") and call sites

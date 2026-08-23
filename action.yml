@@ -1,6 +1,6 @@
-name: Corroborate
+name: Substantiate
 description: Check whether the claims in an issue, pull request, or report resolve against the repository.
-author: corroborate
+author: substantiate
 
 branding:
   icon: search
@@ -44,7 +44,7 @@ runs:
       with:
         python-version: "3.12"
 
-    - name: Install corroborate
+    - name: Install substantiate
       shell: bash
       run: python -m pip install --quiet "$GITHUB_ACTION_PATH"
 
@@ -55,25 +55,25 @@ runs:
       # passed through the environment and read from a file -- never
       # interpolated into this script, which would be a shell injection.
       env:
-        CORROBORATE_REPORT: ${{ inputs.report }}
-        CORROBORATE_REPO: ${{ inputs.repo-path }}
-        CORROBORATE_REF: ${{ inputs.ref }}
-        CORROBORATE_ONLINE: ${{ inputs.online }}
+        SUBSTANTIATE_REPORT: ${{ inputs.report }}
+        SUBSTANTIATE_REPO: ${{ inputs.repo-path }}
+        SUBSTANTIATE_REF: ${{ inputs.ref }}
+        SUBSTANTIATE_ONLINE: ${{ inputs.online }}
       run: |
         set -euo pipefail
-        printf '%s' "$CORROBORATE_REPORT" > "$RUNNER_TEMP/report.md"
+        printf '%s' "$SUBSTANTIATE_REPORT" > "$RUNNER_TEMP/report.md"
 
-        args=(check "$RUNNER_TEMP/report.md" --repo "$CORROBORATE_REPO" --ref "$CORROBORATE_REF")
-        if [ "$CORROBORATE_ONLINE" = "true" ]; then args+=(--online); fi
+        args=(check "$RUNNER_TEMP/report.md" --repo "$SUBSTANTIATE_REPO" --ref "$SUBSTANTIATE_REF")
+        if [ "$SUBSTANTIATE_ONLINE" = "true" ]; then args+=(--online); fi
 
-        corroborate "${args[@]}" --format json > "$RUNNER_TEMP/result.json"
-        corroborate "${args[@]}" --format markdown > "$RUNNER_TEMP/result.md"
+        substantiate "${args[@]}" --format json > "$RUNNER_TEMP/result.json"
+        substantiate "${args[@]}" --format markdown > "$RUNNER_TEMP/result.md"
 
         # A fixed heredoc delimiter is forgeable: content that contains the
         # delimiter on its own line can close the block early and inject
         # further step outputs. The report body is attacker-controlled and
         # reaches the rendered markdown, so the delimiter is randomised.
-        delim="CORROBORATE_$(openssl rand -hex 16 2>/dev/null || echo "${RANDOM}${RANDOM}${RANDOM}")"
+        delim="SUBSTANTIATE_$(openssl rand -hex 16 2>/dev/null || echo "${RANDOM}${RANDOM}${RANDOM}")"
         {
           echo "markdown<<$delim"
           cat "$RUNNER_TEMP/result.md"

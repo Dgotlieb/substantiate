@@ -80,7 +80,7 @@ def _git(cwd: Path, *args: str) -> None:
 
 def build(root: Path | None = None) -> Path:
     """Create the fixture repository and return its path."""
-    root = root or Path(tempfile.mkdtemp(prefix="corroborate-fixture-"))
+    root = root or Path(tempfile.mkdtemp(prefix="substantiate-fixture-"))
     (root / "lib").mkdir(parents=True, exist_ok=True)
     (root / "src").mkdir(parents=True, exist_ok=True)
 

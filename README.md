@@ -1,11 +1,11 @@
-# Corroborate
+# Substantiate
 
 **An evidence gate for open-source contributions.** It checks whether the claims in an
 issue, pull request, or security report correspond to anything real — before a maintainer
 spends an hour proving they don't.
 
 ```
-CORROBORATE  11 claims checked · 2 verified · 5 not found · 4 skipped
+SUBSTANTIATE  11 claims checked · 2 verified · 5 not found · 4 skipped
 
 CODE REFERENCES                                       ref: v8.12.1
   not found  8.9.0                                  no matching release tag
@@ -40,7 +40,7 @@ half an hour of reading code the report describes but does not match.
 
 ## The one design rule
 
-**Corroborate verifies claims, never authorship.**
+**Substantiate verifies claims, never authorship.**
 
 It is not a detector, and that is a deliberate constraint rather than a missing feature.
 Detectors of generated text do not work reliably, and a tool that accuses contributors of
@@ -68,8 +68,8 @@ Tier 1 has no dependencies and never will — maintainers running this on untrus
 should not have to audit a dependency tree to do it.
 
 ```sh
-pipx install corroborate               # zero dependencies
-pipx install "corroborate[treesitter]" # optional: parse instead of pattern-match
+pipx install substantiate               # zero dependencies
+pipx install "substantiate[treesitter]" # optional: parse instead of pattern-match
 ```
 
 Runs on Python 3.10+. The optional extra swaps regex symbol matching for a real parser,
@@ -82,16 +82,16 @@ on untrusted reports should not have to audit a dependency tree first.
 
 ```sh
 # A report saved to a file, checked against a released tag
-corroborate check report.md --repo ~/src/curl --ref v8.12.1
+substantiate check report.md --repo ~/src/curl --ref v8.12.1
 
 # A GitHub issue, piped in
-gh issue view 4471 --json body -q .body | corroborate check - --repo .
+gh issue view 4471 --json body -q .body | substantiate check - --repo .
 
 # Also check CVEs, CWEs, RFCs and links against public registries
-corroborate check report.md --online
+substantiate check report.md --online
 
 # For your own automation
-corroborate check report.md --format json
+substantiate check report.md --format json
 ```
 
 Because most reports that hurt most arrive privately — through HackerOne, a security list,
@@ -118,7 +118,7 @@ else is opt-in.
 | **Tier 4** | does the diff match its own description | the diff alone | planned |
 
 Symbols resolve as *declarations*, not as strings — a mention in a comment, or in the
-report's own quoted diff, must not corroborate itself.
+report's own quoted diff, must not substantiate itself.
 
 ## Being fair to genuine reports
 
@@ -130,7 +130,7 @@ So `not found` never stands alone when the tool can explain it. A path that fail
 the file moved says where it is now. A symbol that fails gets its closest declared
 neighbours. A line reference past the end of a real file says so explicitly.
 
-If you find a genuine report that Corroborate marks down without a hint, that is a bug —
+If you find a genuine report that Substantiate marks down without a hint, that is a bug —
 please [open an issue](../../issues) with the report and the repo.
 
 ## Contributing
@@ -141,7 +141,7 @@ without understanding the core: language packs, registry resolvers, report adapt
 reproduction recipes. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```sh
-git clone https://github.com/USER/corroborate && cd corroborate
+git clone https://github.com/Dgotlieb/substantiate && cd substantiate
 python3 -m unittest discover -s tests -t .   # no install, no dependencies
 ```
 
@@ -178,7 +178,7 @@ found.
 ### False verification is the worse failure
 
 The benchmark counts unresolved claims, so it barely registers the opposite error:
-corroborating a claim against something that is not a declaration. Measured on curl, two
+substantiating a claim against something that is not a declaration. Measured on curl, two
 patterns were silently blessing fabricated claims —
 
 ```c
@@ -188,14 +188,14 @@ patterns were silently blessing fabricated claims —
 
 — both of which the regex resolver was reporting as declarations of `realloc`. Comments
 are now stripped before matching, call sites are rejected, and C declarations must begin
-at column zero with their return type. A claim is never corroborated by prose that merely
+at column zero with their return type. A claim is never substantiated by prose that merely
 mentions it, including prose inside the code.
 
 ## Status
 
 Early. The v0.1 surface is Tier 1 and Tier 2 with deterministic extraction. It is a
 filter, not an oracle: a fabricated report that cites only real files, real symbols and a
-real CVE will pass every check. Corroborate removes the cheapest fiction, which is most of
+real CVE will pass every check. Substantiate removes the cheapest fiction, which is most of
 it today, and will be adapted to.
 
 ## License

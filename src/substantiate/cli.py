@@ -1,7 +1,7 @@
 """Command line entry point.
 
-    corroborate check report.md --repo ~/src/curl --ref v8.12.1
-    gh issue view 4471 --json body -q .body | corroborate check - --repo .
+    substantiate check report.md --repo ~/src/curl --ref v8.12.1
+    gh issue view 4471 --json body -q .body | substantiate check - --repo .
 
 Exit status is 0 even when claims do not resolve. That is deliberate: this tool
 produces a triage signal for a human, and a non-zero exit invites people to wire
@@ -25,10 +25,10 @@ from .verify import run
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="corroborate",
+        prog="substantiate",
         description="Check whether the claims in a report correspond to anything real.",
     )
-    parser.add_argument("--version", action="version", version=f"corroborate {__version__}")
+    parser.add_argument("--version", action="version", version=f"substantiate {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check", help="verify a report against a repository")
@@ -63,7 +63,7 @@ def _read(source: str) -> str:
         with open(source, encoding="utf-8", errors="replace") as fh:
             return fh.read()
     except OSError as exc:
-        sys.exit(f"corroborate: cannot read {source}: {exc}")
+        sys.exit(f"substantiate: cannot read {source}: {exc}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         repo = Repo(args.repo, args.ref)
     except RepoError as exc:
-        sys.exit(f"corroborate: {exc}")
+        sys.exit(f"substantiate: {exc}")
 
     tiers = {1, 2} if args.online else {1}
     result = run(extract(text), repo, tiers=tiers)

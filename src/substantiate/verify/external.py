@@ -25,7 +25,7 @@ _CWE_MAX = 1440
 
 
 def _get(url: str, method: str = "GET") -> tuple[int, bytes]:
-    req = urllib.request.Request(url, method=method, headers={"User-Agent": "corroborate"})
+    req = urllib.request.Request(url, method=method, headers={"User-Agent": "substantiate"})
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
         return resp.status, resp.read() if method == "GET" else b""
 

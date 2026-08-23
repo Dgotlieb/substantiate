@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "corroborate"
+name = "substantiate"
 version = "0.1.0.dev0"
 description = "An evidence gate for open-source contributions: check whether the claims in a report correspond to anything real."
 readme = "README.md"
@@ -28,7 +28,7 @@ dependencies = []
 treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.2"]
 
 [project.scripts]
-corroborate = "corroborate.cli:main"
+substantiate = "substantiate.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

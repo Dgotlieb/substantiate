@@ -13,18 +13,18 @@ import unittest
 
 from tests import fake_repo, fixture
 
-from corroborate.repo import Repo
-from corroborate.symbols import DEFAULT_RESOLVER
-from corroborate.treesitter import available
-from corroborate.verdict import Status
-from corroborate.verify import check
+from substantiate.repo import Repo
+from substantiate.symbols import DEFAULT_RESOLVER
+from substantiate.treesitter import available
+from substantiate.verdict import Status
+from substantiate.verify import check
 
 
-@unittest.skipUnless(available(), "corroborate[treesitter] not installed")
+@unittest.skipUnless(available(), "substantiate[treesitter] not installed")
 class TreeSitterCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from corroborate.treesitter import TreeSitterSymbolResolver
+        from substantiate.treesitter import TreeSitterSymbolResolver
 
         cls.root = fake_repo.build()
         cls.repo = Repo(cls.root, "HEAD")

@@ -8,7 +8,7 @@ python3 -m unittest discover -s tests -t .
 
 ## The rule that overrides everything else
 
-Corroborate verifies claims, never authorship. A change that infers whether text was
+Substantiate verifies claims, never authorship. A change that infers whether text was
 AI-generated, scores contributors, enables auto-closing by default, or phrases output as
 an accusation will be declined regardless of how well it works. This is not a style
 preference — it is the reason maintainers can run this without poisoning their own
@@ -35,7 +35,7 @@ the rest of the system.
 
 ### A language pack
 
-`src/corroborate/symbols.py` resolves symbols with declaration patterns per language.
+`src/substantiate/symbols.py` resolves symbols with declaration patterns per language.
 Adding one means adding an entry to `_DECLARATIONS` (and `_ALIASES` for dialects that
 share it) plus tests. Currently covered: C/C++, Python, JavaScript/TypeScript, Go, Rust,
 Java, Ruby, PHP.
@@ -51,13 +51,13 @@ tree-sitter backend instead — see below.
 The regex resolver is the zero-dependency default, not the ceiling. `SymbolResolver` in
 `symbols.py` is the seam: implement `find(repo, name) -> list[Location]` and
 `languages() -> set[str]`, register it, and extraction, verdicts and reporting are all
-unchanged. The optional dependency group `corroborate[treesitter]` is reserved for this.
+unchanged. The optional dependency group `substantiate[treesitter]` is reserved for this.
 
 This is the single highest-value open piece of work in the project.
 
 ### A registry resolver
 
-`src/corroborate/verify/external.py` holds Tier 2. Each resolver is one function taking a
+`src/substantiate/verify/external.py` holds Tier 2. Each resolver is one function taking a
 `Claim` and returning a `Verdict`. Wanted:
 
 - package registries (PyPI, npm, crates.io, Go modules, Maven, RubyGems) — a report citing
@@ -78,7 +78,7 @@ attachments. An adapter is a pure function to `(text, attachments)` with fixture
 ### A reproduction recipe
 
 Tier 3 will run a project's own build and proof-of-concept steps in a sandbox, driven by a
-`.corroborate.yml` committed to that project's repository. The schema is not settled; if
+`.substantiate.yml` committed to that project's repository. The schema is not settled; if
 you maintain a project that would use this, opening an issue describing your build
 invocation is more useful right now than code.
 

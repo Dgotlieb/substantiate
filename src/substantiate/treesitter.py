@@ -5,7 +5,7 @@ misses declarations that span lines, it cannot tell a declaration from a string
 literal that looks like one, and it has no idea what an enum constant is.
 
 This backend parses instead. It is optional -- ``pip install
-corroborate[treesitter]`` -- because tier 1 keeping a zero-dependency install is
+substantiate[treesitter]`` -- because tier 1 keeping a zero-dependency install is
 worth more than the accuracy for most users, and because a maintainer running
 this on untrusted reports should be able to audit what they installed.
 
@@ -92,7 +92,7 @@ def _parser(language: str):
     try:
         from tree_sitter_language_pack import get_parser
     except ImportError as exc:  # pragma: no cover - depends on install extras
-        raise TreeSitterUnavailable("install corroborate[treesitter]") from exc
+        raise TreeSitterUnavailable("install substantiate[treesitter]") from exc
     return get_parser(language)
 
 

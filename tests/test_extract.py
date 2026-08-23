@@ -11,8 +11,8 @@ import unittest
 
 from tests import fixture
 
-from corroborate.claims import ClaimKind
-from corroborate.extract import extract
+from substantiate.claims import ClaimKind
+from substantiate.extract import extract
 
 
 def kinds(text: str, kind: ClaimKind) -> list[str]:

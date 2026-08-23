@@ -29,9 +29,9 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from corroborate.repo import Repo  # noqa: E402
-from corroborate.verdict import Status  # noqa: E402
-from corroborate.verify import check  # noqa: E402
+from substantiate.repo import Repo  # noqa: E402
+from substantiate.verdict import Status  # noqa: E402
+from substantiate.verify import check  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

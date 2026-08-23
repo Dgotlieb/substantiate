@@ -1,4 +1,4 @@
-"""Corroborate — an evidence gate for open-source contributions.
+"""Substantiate — an evidence gate for open-source contributions.
 
 Checks whether the claims in an issue, pull request, or security report
 correspond to anything real, before a maintainer spends an hour proving they

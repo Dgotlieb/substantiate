@@ -20,7 +20,7 @@ _MARK = {
 
 
 def render(result: Result) -> str:
-    out = [f"**Corroborate** — {summary_line(result)}", ""]
+    out = [f"**Substantiate** — {summary_line(result)}", ""]
 
     unresolved = result.by_status(Status.NOT_FOUND)
     if unresolved:

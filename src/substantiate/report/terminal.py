@@ -34,7 +34,7 @@ def render(result: Result, *, color: bool = True) -> str:
     def paint(text: str, style: str) -> str:
         return f"{_ANSI[style]}{text}{_ANSI['reset']}" if color else text
 
-    lines = [f"{paint('CORROBORATE', 'bold')}  {paint(summary_line(result), 'dim')}", ""]
+    lines = [f"{paint('SUBSTANTIATE', 'bold')}  {paint(summary_line(result), 'dim')}", ""]
 
     for tier in (1, 2):
         verdicts = result.by_tier(tier)
