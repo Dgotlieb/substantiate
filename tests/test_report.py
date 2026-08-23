@@ -96,3 +96,29 @@ class TestRendering(ReportCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVersionIsSingleSourced(unittest.TestCase):
+    """The packaged version and the one the CLI prints must not drift.
+
+    They did: a wheel built as 0.1.0 reported 0.1.0.dev0, because pyproject.toml
+    and substantiate.__version__ were maintained by hand and only one was
+    bumped. Publishing a package that misreports its own version is the kind of
+    thing a user hits first and trusts least.
+    """
+
+    def test_pyproject_takes_its_version_from_the_module(self):
+        import pathlib
+        import tomllib
+
+        root = pathlib.Path(__file__).resolve().parents[1]
+        data = tomllib.loads((root / "pyproject.toml").read_text())
+        project = data["project"]
+        self.assertNotIn(
+            "version", project, "pyproject declares a static version that can drift"
+        )
+        self.assertIn("version", project.get("dynamic", []))
+        self.assertEqual(
+            data["tool"]["setuptools"]["dynamic"]["version"]["attr"],
+            "substantiate.__version__",
+        )

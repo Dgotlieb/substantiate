@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "substantiate"
-version = "0.1.0.dev0"
+# Single-sourced from substantiate.__version__ so the packaged metadata and
+# what "substantiate --version" prints cannot drift apart. They did: a 0.1.0
+# wheel reported 0.1.0.dev0 because the two were maintained by hand.
+dynamic = ["version"]
 description = "An evidence gate for open-source contributions: check whether the claims in a report correspond to anything real."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -44,6 +47,9 @@ treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.2"]
 
 [project.scripts]
 substantiate = "substantiate.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "substantiate.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
