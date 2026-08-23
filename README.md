@@ -165,10 +165,23 @@ Four causes, each now fixed and pinned by a regression test built from the actua
 - schemeless URLs read as paths — `example.com/moo2.txt`
 - the date `20190808` parsed as a commit SHA
 
-Current rate on that corpus: **26.9% not found, of which 13.4% is unexplained** (with the
-tree-sitter backend; 14.9% with the zero-dependency default). That second number is the
-one that matters. A miss carrying a hint — "a file of that name exists at `lib/hpack.c`" —
-is useful to everyone. A bare miss on an honest report is what gets the tool uninstalled.
+Current rates, both with the tree-sitter backend:
+
+| Corpus | Claims | Not found | Unexplained |
+|---|---|---|---|
+| curl `docs/` (C, 4,449 files) | 67 | 26.9% | **13.4%** |
+| urllib3 `docs/` (Python) | 21 | 14.3% | **9.5%** |
+
+The unexplained column is the one that matters. A miss carrying a hint — "a file of that
+name exists at `lib/hpack.c`" — is useful to everyone. A bare miss on an honest report is
+what gets the tool uninstalled.
+
+Adding the second corpus was worth more than any amount of tuning against the first.
+Python documentation is written in dotted calls, and `logging.getLogger`,
+`urllib.request.getproxies`, `certifi.where` and `.setLevel` were all being reported as
+undeclared — 6 of 8 misses on urllib3, a class that a C-only corpus could never surface.
+None of them is a claim that the project declares anything. Attributes rooted outside the
+repository now resolve as skipped, and the fixture repository is no longer C-only.
 
 Most of the remainder is the tool being right. `curl_easy_options`, `curl_formparse`,
 `dohprobe` and `readwrite_data` genuinely are absent from curl at HEAD, and `ldap_bind_s`

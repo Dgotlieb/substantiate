@@ -127,6 +127,53 @@ class TestDeclarationsOnly(TierOneCase):
                 self.assertIn("not defined here", v.detail)
 
 
+class TestForeignAttributes(TierOneCase):
+    """Dotted calls on things this repository does not define.
+
+    Python documentation is written in dotted calls, and on urllib3 this was the
+    single largest class of false findings: "logging.getLogger",
+    "urllib.request.getproxies", "certifi.where" and ".setLevel" were all being
+    reported as undeclared. None of them is a claim that the project declares
+    anything, so none of them is this tool's question to answer.
+    """
+
+    def _only(self, text):
+        verdicts = check(text, self.repo).verdicts
+        self.assertEqual(len(verdicts), 1, [v.claim.raw for v in verdicts])
+        return verdicts[0]
+
+    def test_python_stdlib_is_skipped(self):
+        for call in ("logging.getLogger()", "urllib.request.getproxies()"):
+            with self.subTest(call=call):
+                v = self._only(f"It calls {call} at startup.")
+                self.assertIs(v.status, Status.SKIPPED)
+                self.assertIn("Python standard library", v.detail)
+
+    def test_third_party_attribute_is_skipped(self):
+        v = self._only("It calls certifi.where() to find the bundle.")
+        self.assertIs(v.status, Status.SKIPPED)
+        self.assertIn("certifi", v.detail)
+
+    def test_bare_attribute_on_an_unnamed_object_is_skipped(self):
+        v = self._only("The handler calls .setLevel() too early.")
+        self.assertIs(v.status, Status.SKIPPED)
+        self.assertIn("does not name", v.detail)
+
+    def test_attribute_rooted_in_this_repository_is_still_checked(self):
+        # Session is declared here, so Session.connect is a real claim about
+        # this codebase and must not be waved through.
+        v = self._only("The bug is in Session.connect().")
+        self.assertIs(v.status, Status.VERIFIED)
+
+    def test_undeclared_attribute_rooted_here_is_not_found(self):
+        v = self._only("The bug is in Session.reconnect().")
+        self.assertIs(v.status, Status.NOT_FOUND)
+
+    def test_plain_python_function_verifies(self):
+        v = self._only("The bug is in open_session().")
+        self.assertIs(v.status, Status.VERIFIED)
+
+
 class TestRepoBehaviour(TierOneCase):
     def test_every_verdict_carries_a_reproducible_query(self):
         result = check(fixture("fabricated_hpack.md"), self.repo)

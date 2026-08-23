@@ -69,6 +69,32 @@ int main(int argc, char *argv[])
 """
 
 
+SESSION_PY = '''\
+"""A small Python module, so the fixture is not C-only.
+
+The fixture repository being pure C is why an entire class of false findings --
+dotted attribute calls in Python documentation -- went unnoticed until the
+benchmark was pointed at urllib3.
+"""
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class Session:
+    def connect(self, host):
+        return host
+
+    def close(self):
+        logger.setLevel(logging.DEBUG)
+
+
+def open_session(host):
+    return Session()
+'''
+
+
 def _git(cwd: Path, *args: str) -> None:
     subprocess.run(
         ["git", "-C", str(cwd), *args],
@@ -90,6 +116,7 @@ def build(root: Path | None = None) -> Path:
     (root / "lib" / "hpack.c").write_text(HPACK_C)
     (root / "lib" / "http2.h").write_text("#ifndef HTTP2_H\n#define HTTP2_H\n#endif\n")
     (root / "src" / "tool_main.c").write_text(TOOL_MAIN_C)
+    (root / "lib" / "session.py").write_text(SESSION_PY)
     (root / "README.md").write_text("# fixture project\n")
 
     _git(root, "init", "-q")

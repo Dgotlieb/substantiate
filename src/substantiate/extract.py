@@ -193,7 +193,12 @@ def extract(text: str) -> list[Claim]:
         name = m.group(1)
         if not _looks_like_symbol(name, empty_parens=bool(m.group(2))):
             continue
-        add(ClaimKind.SYMBOL, m, {"name": name}, span=m.span(1))
+        # ".setLevel(" is a method on some object the report never names. The
+        # leading dot is the only evidence of that, and it is outside the
+        # capture, so record it here or the receiver is lost.
+        start = m.start(1)
+        attribute = start > 0 and text[start - 1] == "."
+        add(ClaimKind.SYMBOL, m, {"name": name, "attribute": attribute}, span=m.span(1))
 
     # 6. Versions: ranges emit both endpoints, since both are separately checkable.
     for m in _VERSION_RANGE.finditer(text):

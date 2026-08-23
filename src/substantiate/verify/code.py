@@ -48,9 +48,24 @@ def verify_symbol(
 
     # A name that belongs to the C library or a build system is not a claim
     # about this repository, and reporting it as missing is a false finding.
-    external = builtins.origin(name)
+    external = builtins.origin(name) or builtins.stdlib_origin(name)
     if external:
         return Verdict(claim, Status.SKIPPED, f"{external}, not defined here", query)
+
+    # "certifi.where", "ctx.load_default_certs", ".setLevel" -- an attribute of
+    # something this repository does not define. Whether it exists is a question
+    # about the other project or about a runtime type, and this tool cannot
+    # answer it. Measured on urllib3, this was the largest single class of false
+    # findings, because Python documentation is written in dotted calls.
+    root = builtins.dotted_root(name)
+    if root and not resolver.find(repo, root):
+        return Verdict(
+            claim, Status.SKIPPED, f"attribute of {root}, which is not defined here", query
+        )
+    if claim.data.get("attribute") and not root:
+        return Verdict(
+            claim, Status.SKIPPED, "attribute of an object the report does not name", query
+        )
 
     hint = None
     misses = resolver.near_misses(repo, name)

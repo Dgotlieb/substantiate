@@ -77,6 +77,16 @@ _SOURCES: tuple[tuple[frozenset[str], str], ...] = (
     (AUTOTOOLS, "Autoconf macro"),
 )
 
+# The Python standard library, straight from the interpreter rather than a list
+# we would have to maintain. "logging.getLogger" and "urllib.request.getproxies"
+# are not claims that this project declares anything.
+try:  # pragma: no cover - trivially available on every supported version
+    import sys
+
+    PYTHON_STDLIB = frozenset(sys.stdlib_module_names)
+except AttributeError:  # pragma: no cover - Python < 3.10
+    PYTHON_STDLIB = frozenset()
+
 
 def origin(name: str) -> str | None:
     """Where ``name`` comes from, or None if it is not a known external."""
@@ -85,3 +95,15 @@ def origin(name: str) -> str | None:
         if base in names:
             return label
     return None
+
+
+def dotted_root(name: str) -> str | None:
+    """The leading component of a dotted name, or None if it is not dotted."""
+    head = name.split("::")[0].split("->")[0]
+    return head.split(".")[0] if "." in head else None
+
+
+def stdlib_origin(name: str) -> str | None:
+    """A label when ``name`` is rooted in the Python standard library."""
+    root = dotted_root(name)
+    return "Python standard library" if root and root in PYTHON_STDLIB else None
