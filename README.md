@@ -202,10 +202,13 @@ Current rates, with the tree-sitter backend:
 | curl advisories, at the affected release | 129 | 29.5% | **24.0%** |
 | curl advisories, at HEAD | 124 | 13.7% | **7.3%** |
 | curl `docs/` (C, 4,449 files) | 1,165 | 40.7% | **32.0%** |
-| urllib3 `docs/` (Python) † | 21 | 14.3% | **9.5%** |
+| urllib3 markdown (Python) † | 14 | 7.1% | **0.0%** |
 
-† Measured before named constants were extracted, and not re-measured since. Treat it
-as a floor rather than a current figure.
+† urllib3 documents itself in reStructuredText and this harness reads only Markdown, so
+the Python row covers the nine `.md` files in the repository rather than `docs/`. It is a
+thin corpus and the zero should be read as "nothing left to find here", not as a general
+rate. Extending the harness to `.rst` would say more about Python projects than any
+further tuning against curl.
 
 The unexplained column is the one that matters. A miss carrying a hint — "a file of that
 name exists at `lib/hpack.c`" — is useful to everyone. A bare miss on an honest report is
