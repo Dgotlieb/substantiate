@@ -207,6 +207,13 @@ class TestRepoBehaviour(TierOneCase):
     def test_commit_sha_resolution(self):
         sha = fake_repo.head_sha(self.root)
         result = check(f"Introduced in commit {sha[:12]}.", self.repo)
+        # Asserted rather than assumed: an abbreviated SHA with no hex letter in
+        # it is not extracted, which is correct, so a fixture whose SHA varied
+        # per run made this test fail once in thousands. The fixture is pinned
+        # to a fixed identity and date now, and this says so out loud.
+        self.assertTrue(
+            result.verdicts, f"no claim extracted from abbreviated sha {sha[:12]}"
+        )
         self.assertIs(result.verdicts[0].status, Status.VERIFIED)
 
     def test_unknown_commit_is_not_found(self):

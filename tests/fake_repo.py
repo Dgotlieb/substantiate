@@ -6,6 +6,7 @@ often on the receiving end of fabricated vulnerability reports.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -136,12 +137,30 @@ def open_session(host):
 '''
 
 
+# A fixed identity and timestamp make the commit SHA reproducible. Without
+# them every build produces a different SHA, and any test that reads one is
+# quietly betting on its contents: a hex string with no letter in its first
+# twelve characters is not a commit as far as extraction is concerned, which is
+# correct behaviour and a flaky test. Rare enough to pass a hundred local runs
+# and fail one CI job, which is exactly how it surfaced.
+_FIXED_TIME = "2024-01-01T00:00:00+00:00"
+_ENV = {
+    "GIT_AUTHOR_NAME": "Fixture",
+    "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+    "GIT_AUTHOR_DATE": _FIXED_TIME,
+    "GIT_COMMITTER_NAME": "Fixture",
+    "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    "GIT_COMMITTER_DATE": _FIXED_TIME,
+}
+
+
 def _git(cwd: Path, *args: str) -> None:
     subprocess.run(
         ["git", "-C", str(cwd), *args],
         check=True,
         capture_output=True,
         text=True,
+        env={**os.environ, **_ENV},
     )
 
 
