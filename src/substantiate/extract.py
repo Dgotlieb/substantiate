@@ -236,12 +236,20 @@ def extract(text: str) -> list[Claim]:
     for m in _VERSION.finditer(text):
         add(ClaimKind.VERSION, m, {"version": m.group(1)}, span=m.span(1))
 
-    # 7. Commit SHAs. A real abbreviated SHA effectively always mixes digits and
+    # 7. Commit SHAs. An abbreviated SHA effectively always mixes digits and
     # letters: requiring both rejects English hex-alikes ("deadbeef", "accede")
     # and, just as importantly, bare numbers like the date "20190808".
+    #
+    # At full length that ambiguity is gone -- no word is forty hex characters
+    # -- and the letters-only case is the one that matters most, because
+    # "deadbeefdeadbeef..." is exactly the SHA a fabricated report cites. Only
+    # the digit requirement is dropped there; forty digits is still far more
+    # likely a number than a commit.
     for m in _COMMIT.finditer(text):
         sha = m.group(1)
-        if not any(ch.isdigit() for ch in sha) or not any(ch in "abcdef" for ch in sha):
+        if not any(ch in "abcdef" for ch in sha):
+            continue
+        if len(sha) < 40 and not any(ch.isdigit() for ch in sha):
             continue
         add(ClaimKind.COMMIT, m, {"sha": sha})
 

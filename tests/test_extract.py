@@ -180,3 +180,28 @@ class TestFixtures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFullLengthCommits(unittest.TestCase):
+    """A full 40-character hex string is a SHA whatever letters it uses.
+
+    The mixed digits-and-letters rule exists to reject English hex-alikes like
+    "deadbeef" and "accede", which is right for an abbreviated SHA. At full
+    length there is no such ambiguity -- no word is forty hex characters -- and
+    "deadbeefdeadbeef..." is precisely the SHA a fabricated report cites.
+    """
+
+    def test_full_length_hex_word_sha_is_a_commit(self):
+        text = "Introduced in commit deadbeefdeadbeefdeadbeefdeadbeefdeadbeef."
+        self.assertEqual(
+            values(text, ClaimKind.COMMIT, "sha"),
+            ["deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"],
+        )
+
+    def test_abbreviated_hex_word_is_still_rejected(self):
+        self.assertEqual(kinds("The deadbeef marker is set.", ClaimKind.COMMIT), [])
+
+    def test_full_length_all_digits_is_not_a_commit(self):
+        # Forty digits is not a SHA anyone writes; it is far more likely a
+        # number, and the digits-and-letters rule still earns its keep here.
+        self.assertEqual(kinds("Counter " + "1" * 40 + " overflowed.", ClaimKind.COMMIT), [])
