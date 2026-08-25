@@ -14,7 +14,10 @@ import json
 import urllib.error
 import urllib.request
 
+import re
+
 from ..claims import Claim
+from ..repo import Repo
 from ..verdict import Status, Verdict
 
 _TIMEOUT = 8
@@ -30,7 +33,86 @@ def _get(url: str, method: str = "GET") -> tuple[int, bytes]:
         return resp.status, resp.read() if method == "GET" else b""
 
 
-def verify_cve(claim: Claim) -> Verdict:
+# -- Is this advisory about this project? -----------------------------------
+#
+# A CVE resolves as long as it exists, which answers a different question from
+# the one a triager is asking. An invented identifier turned out to be a real
+# Linux kernel bug, so a fabricated report about a Python project got a line
+# that read like corroboration -- the one claim most worth challenging came
+# back green.
+#
+# OSV already says what each advisory affects, so the answer is in hand. The
+# verdict stays resolved either way: the identifier is real and saying
+# otherwise would be false. What changes is that an advisory with no visible
+# connection to this repository says so.
+
+_MANIFEST_NAME = {
+    "pyproject.toml": re.compile(r"^\s*name\s*=\s*[\"']([^\"']+)", re.MULTILINE),
+    "setup.cfg": re.compile(r"^\s*name\s*=\s*(\S+)", re.MULTILINE),
+    "Cargo.toml": re.compile(r"^\s*name\s*=\s*[\"']([^\"']+)", re.MULTILINE),
+    "package.json": re.compile(r'"name"\s*:\s*"([^"]+)"'),
+}
+
+
+def _normalise(name: str) -> str:
+    """PyPI folds these together and so must we, or the hint fires on honest text."""
+    return re.sub(r"[-_.]+", "-", name.strip().lower()).strip("-")
+
+
+def _project_names(repo: Repo) -> set[str]:
+    """Every name this repository plausibly goes by."""
+    names = {_normalise(repo.path.name)}
+    for path, pattern in _MANIFEST_NAME.items():
+        try:
+            content = repo.read(path)
+        except Exception:
+            continue
+        if not content:
+            continue
+        found = pattern.search(content)
+        if found:
+            names.add(_normalise(found.group(1)))
+    # A scoped npm package is "@scope/thing"; the bare name is what matches.
+    names |= {n.rsplit("/", 1)[-1] for n in names if "/" in n}
+    return {n for n in names if n}
+
+
+def _osv_relevance(data: dict, repo: Repo) -> str | None:
+    """A hint when an advisory has no visible connection to this repository.
+
+    Returns None whenever the answer is unclear, which includes an advisory
+    that lists nothing at all. No affected list is not evidence of
+    irrelevance, and an unhinted verdict beats a confidently wrong hint.
+    """
+    ours = _project_names(repo)
+    packages: list[str] = []
+    for entry in data.get("affected") or []:
+        package = (entry.get("package") or {}).get("name")
+        if package:
+            packages.append(package)
+            if _normalise(package) in ours:
+                return None
+        for span in entry.get("ranges") or []:
+            location = span.get("repo") or ""
+            if location and _normalise(location.rstrip("/").rsplit("/", 1)[-1]) in ours:
+                return None
+    if not packages:
+        return None
+
+    shown, seen = [], set()
+    for name in packages:
+        if name not in seen:
+            seen.add(name)
+            shown.append(name)
+        if len(shown) == 3:
+            break
+    listed = ", ".join(shown)
+    if len(seen) < len(packages) or len(packages) > len(shown):
+        listed += ", and others"
+    return f"published, but affects {listed} -- nothing this repository declares itself to be"
+
+
+def verify_cve(claim: Claim, repo: Repo | None = None) -> Verdict:
     cve = claim.data["id"]
     query = f"https://api.osv.dev/v1/vulns/{cve}"
     try:
@@ -39,7 +121,8 @@ def verify_cve(claim: Claim) -> Verdict:
             data = json.loads(body)
             summary = (data.get("summary") or "").strip()
             detail = f"published: {summary[:60]}" if summary else "published"
-            return Verdict(claim, Status.VERIFIED, detail, query)
+            hint = _osv_relevance(data, repo) if repo is not None else None
+            return Verdict(claim, Status.VERIFIED, detail, query, hint=hint)
         return Verdict(claim, Status.NOT_FOUND, "absent from OSV", query)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:

@@ -99,7 +99,7 @@ def _dispatch(claim: Claim, repo: Repo, resolver) -> Verdict:
         if claim.kind is ClaimKind.COMMIT:
             return code.verify_commit(repo, claim)
         if claim.kind is ClaimKind.CVE:
-            return external.verify_cve(claim)
+            return external.verify_cve(claim, repo)
         if claim.kind is ClaimKind.CWE:
             return external.verify_cwe(claim)
         if claim.kind is ClaimKind.RFC:
