@@ -1,4 +1,4 @@
-name: Substantiate
+name: Substantiate Claims
 description: Check whether the claims in an issue, pull request, or report resolve against the repository.
 author: Dgotlieb
 
