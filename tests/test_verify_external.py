@@ -29,7 +29,13 @@ class RelevanceCase(unittest.TestCase):
 
 class TestProjectNames(RelevanceCase):
     def test_the_directory_name_is_one_of_them(self):
-        self.assertIn(self.repo.path.name.lower(), _project_names(self.repo))
+        # Normalised on both sides. The fixture directory is a mkdtemp name, so
+        # roughly one run in three contains an underscore -- comparing the raw
+        # name against a normalised set passes locally and fails in CI, which is
+        # the same coin-flip that the pinned fixture commit was written to stop.
+        from substantiate.verify.external import _normalise
+
+        self.assertIn(_normalise(self.repo.path.name), _project_names(self.repo))
 
     def test_underscores_and_dots_normalise_to_hyphens(self):
         # PyPI treats them as equivalent, so "verdict_mcp" must match a CVE
