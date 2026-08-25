@@ -256,8 +256,8 @@ Current rates, with the tree-sitter backend:
 
 | Corpus | Claims | Not found | Unexplained |
 |---|---|---|---|
-| curl advisories, at the affected release | 129 | 29.5% | **24.0%** |
-| curl advisories, at HEAD | 124 | 13.7% | **7.3%** |
+| curl advisories, at the affected release | 129 | 9.3% | **3.1%** |
+| curl advisories, at HEAD | 124 | 12.1% | **5.6%** |
 | curl `docs/` (C, 4,449 files) | 1,165 | 40.7% | **32.0%** |
 | urllib3 markdown (Python) † | 14 | 7.1% | **0.0%** |
 
@@ -266,6 +266,20 @@ the Python row covers the nine `.md` files in the repository rather than `docs/`
 thin corpus and the zero should be read as "nothing left to find here", not as a general
 rate. Extending the harness to `.rst` would say more about Python projects than any
 further tuning against curl.
+
+The pinned advisory row was 29.5% and 24.0% until the backend learned to read enum
+constants the C grammar cannot parse. curl declares every option through a macro, and
+through 7.62 it pasted the name together — `CINIT(SSL_VERIFYPEER, LONG, 64)`, so
+`CURLOPT_SSL_VERIFYPEER` appears zero times in the header that declares it. Since
+advisories name the API constant almost every time, and the pinned row checks each one
+against the old release it actually describes, that single class of miss was most of the
+column. All four survivors are internal functions curl has since renamed or removed.
+
+The documentation row did not move, which is the honest result rather than a
+disappointing one: it is measured at HEAD, where the constants resolved already, and what
+remains is dominated by build variables (`CURL_ZLIB`, `ANDROID_NDK_HOME`) and by names
+curl's own prose gets wrong — `CURLOPT_CONNECTIMEOUT` is a typo for
+`CURLOPT_CONNECTTIMEOUT` and this tool is right to say it resolves to nothing.
 
 The unexplained column is the one that matters. A miss carrying a hint — "a file of that
 name exists at `lib/hpack.c`" — is useful to everyone. A bare miss on an honest report is
