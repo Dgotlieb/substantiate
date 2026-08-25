@@ -68,3 +68,37 @@ jobs:
           repository-url: >-
             ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi')
                 && 'https://test.pypi.org/legacy/' || '' }}
+
+  major-tag:
+    # The README tells adopters to pin the Action at "@v1", because a floating
+    # major tag is what every published Action does and asking people to bump a
+    # patch pin is how you get abandoned workflows. But a floating tag only
+    # floats if something moves it, and moving it by hand is a step that is easy
+    # to skip and impossible to notice skipping: every adopter simply stays on
+    # the previous release, green, silent, and never getting the fix.
+    #
+    # ACTION_MAJOR is the Action's own compatibility line, not the package
+    # version -- substantiate is 0.1.x while the Action is v1, the same way
+    # actions/checkout@v4 has never matched its package version. Bump it here,
+    # in one place, only when the Action's inputs change incompatibly.
+    needs: publish
+    if: github.event_name == 'release' && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ACTION_MAJOR: v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Move the major tag onto this release
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f -a "$ACTION_MAJOR" "$TAG" -m "$ACTION_MAJOR -> $TAG"
+          git push -f origin "$ACTION_MAJOR"
+          echo "::notice::$ACTION_MAJOR now points at $TAG"

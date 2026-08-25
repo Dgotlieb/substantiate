@@ -91,6 +91,31 @@ invocation is more useful right now than code.
   not only a recall test.
 - Tier 2 tests must not require the network. Test the parsing, stub the fetch.
 
+## Cutting a release
+
+The version lives in exactly one place, `src/substantiate/__init__.py`. `pyproject.toml`
+reads it from there and the suite fails if the two ever disagree, so there is no second
+file to remember.
+
+1. Bump `__version__`, commit, and let CI go green.
+2. Tag it and push the tag:
+   ```sh
+   git tag -a v0.1.2 -m "Release 0.1.2" && git push origin v0.1.2
+   ```
+3. Publish a GitHub release for that tag. *Publishing* is the trigger — a draft does
+   nothing. `release.yml` then builds, reinstalls from its own wheel, smoke tests it, and
+   uploads to PyPI over Trusted Publishing, with no token stored anywhere.
+4. Nothing. The `v1` tag moves itself.
+
+Step 4 used to be a manual `git tag -f`, and it is worth knowing why it is not any more.
+The README tells adopters to pin the Action at `@v1`, following the convention every
+published Action uses. A floating tag only floats if something moves it, and forgetting to
+move it fails in the worst possible way: every adopter stays on the previous release,
+their workflow still green, still silent, never receiving the fix. There is nothing to
+notice and no error to read. So the `major-tag` job in `release.yml` does it, and
+`ACTION_MAJOR` there is the one line to change if the Action's inputs ever break
+compatibility.
+
 ## Scope
 
 Claims are checkable, falsifiable statements about the world. If a proposal cannot be

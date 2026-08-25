@@ -58,20 +58,50 @@ void Curl_hpack_cleanup(struct hpack_ctx *ctx)
 }
 """
 
-# Enum constants, in the two shapes a real C project writes them. curl declares
+# Enum constants, in the shapes a real C project writes them. curl declares
 # every one of its options through a macro, which no regex can tell apart from a
-# call site passing the same name as an argument -- so this fixture carries both
-# the plain and the macro-wrapped form.
+# call site passing the same name as an argument -- so this fixture carries the
+# plain form, the macro-wrapped form, and the three shapes that broke the
+# tree-sitter backend against curl itself:
+#
+#   * an entry directly after a #define interleaved into the enum body,
+#   * an entry whose macro call spans two lines,
+#   * an entry whose name the preprocessor pastes together and which therefore
+#     never appears in the source at all.
+#
+# The C grammar has no rule for a macro-wrapped enumerator, so it error-recovers
+# -- and where the recovered ERROR node ends is arbitrary. For one entry it
+# stops after "FIXTURE_OPT(" and the name survives as an enumerator; for the
+# next it swallows "FIXTURE_OPT(FIXTURE_OPT_AUTOREFERER" whole and the name is
+# never seen. Identical syntax, opposite answers, which reads to a maintainer as
+# the tool being broken rather than the claim being wrong.
 OPTIONS_H = """\
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
 #define FIXTURE_OPT(na, t, nu) na = ((t) + (nu))
+#define FIXTURE_OPTDEPRECATED(na, t, nu, v, r) na = ((t) + (nu))
+
+/* The pre-8.0 curl shape: the preprocessor pastes the option name onto a
+   prefix, so the full name appears nowhere in this file -- not even in this
+   comment, or grepping for it would find the file by accident. */
+#define FIXTURE_INIT(na, t, nu) FIXTURE_OPT_ ## na = ((t) + (nu))
 
 typedef enum {
   FIXTURE_OPT_VERIFYPEER = 64,
   FIXTURE_OPT_TIMEOUT = 65,
-  FIXTURE_OPT(FIXTURE_OPT_MAXCONNECTS, 0, 66),
+  FIXTURE_OPT(FIXTURE_OPT_MAXCONNECTS, FIXTURE_TYPE_LONG, 66),
+
+  FIXTURE_OPT(FIXTURE_OPT_XFERINFODATA, FIXTURE_TYPE_CBPOINT, 67),
+#define FIXTURE_OPT_PROGRESSDATA FIXTURE_OPT_XFERINFODATA
+
+  /* Directly after that #define, which is what shifts the error recovery. */
+  FIXTURE_OPT(FIXTURE_OPT_AUTOREFERER, FIXTURE_TYPE_LONG, 68),
+
+  FIXTURE_OPTDEPRECATED(FIXTURE_OPT_KRBLEVEL, FIXTURE_TYPE_STRINGPOINT, 69,
+                        8.17.0, "removed"),
+
+  FIXTURE_INIT(TOKENPASTED, FIXTURE_TYPE_LONG, 70),
 } fixture_option;
 
 #endif
