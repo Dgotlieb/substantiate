@@ -1,7 +1,7 @@
 # Example workflow for projects adopting Substantiate.
 #
 # Copy this into your own repository as .github/workflows/substantiate.yml,
-# changing `uses: ./` to `uses: Dgotlieb/substantiate@4cc4a2e276837bc5e1b2f4765e62fb87c6d9b9e0`. A SHA, not a
+# changing `uses: ./` to `uses: Dgotlieb/substantiate@86b171f7b7afadbfd0cf95dd62a12b579f9078c5`. A SHA, not a
 # tag: this workflow uses pull_request_target. The README carries
 # a copy that is already correct for that. It stays `./` here so this repo
 # tests its own working tree on every issue rather than the last release.
@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0   # tags and history, so version and commit claims resolve
 
       - id: substantiate
-        uses: ./           # adopters: Dgotlieb/substantiate@4cc4a2e276837bc5e1b2f4765e62fb87c6d9b9e0
+        uses: ./           # adopters: Dgotlieb/substantiate@86b171f7b7afadbfd0cf95dd62a12b579f9078c5
         with:
           report: ${{ github.event.issue.body || github.event.pull_request.body }}
           online: "true"
