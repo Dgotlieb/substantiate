@@ -133,6 +133,63 @@ invites people to wire this up as an auto-close gate, which is the one use it mu
 have. Automation that genuinely needs to branch on the outcome can opt into `--exit-code`,
 and should read the JSON.
 
+## Run it on every issue
+
+Copy this into your repository as `.github/workflows/substantiate.yml`. It posts one
+comment when an issue or pull request is opened, and only when something failed to
+resolve — a wall of green on a good report is noise.
+
+```yaml
+name: Substantiate
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          fetch-depth: 0   # tags and history, so version and commit claims resolve
+
+      - id: substantiate
+        uses: Dgotlieb/substantiate@v1
+        with:
+          report: ${{ github.event.issue.body || github.event.pull_request.body }}
+          online: "true"
+
+      - name: Comment when claims did not resolve
+        if: steps.substantiate.outputs.unresolved != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ steps.substantiate.outputs.markdown }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+```
+
+`v1` is a moving tag that follows the latest 0.1.x release. Pin `@v0.1.1` instead if you
+would rather approve every change yourself.
+
+Two things worth understanding before you enable it. `fetch-depth: 0` is not optional:
+without tags, every version and commit claim is skipped, which is most of what a report
+about a release asserts. And `pull_request_target` runs with a token that can comment, so
+the workflow checks out the **base** repository and never the pull request's head —
+nothing from the contributor is executed, and their description is read as data.
+
+The action exposes `markdown`, `json` and `unresolved`, so a project that wants to label
+rather than comment, or route to a triage channel, can branch on the count without
+parsing text.
+
 ## What gets checked
 
 Ordered by cost per unit of signal. Tier 1 needs no network and no model, runs in under a
