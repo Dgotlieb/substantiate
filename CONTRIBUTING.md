@@ -107,6 +107,12 @@ file to remember.
    uploads to PyPI over Trusted Publishing, with no token stored anywhere.
 4. Nothing. The `v1` tag moves itself.
 
+Cutting a release does not reach anyone pinned to a SHA, which is what the README tells
+adopters to do for `pull_request_target` workflows and is the correct advice — a moving
+tag in a job holding a writable token is a supply-chain hole, not a convenience. Update
+the SHA in the README's workflow block as part of the release, and expect adopters to
+arrive via Dependabot rather than automatically.
+
 Step 4 used to be a manual `git tag -f`, and it is worth knowing why it is not any more.
 The README tells adopters to pin the Action at `@v1`, following the convention every
 published Action uses. A floating tag only floats if something moves it, and forgetting to

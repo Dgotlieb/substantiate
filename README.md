@@ -163,7 +163,7 @@ jobs:
           fetch-depth: 0   # tags and history, so version and commit claims resolve
 
       - id: substantiate
-        uses: Dgotlieb/substantiate@v1
+        uses: Dgotlieb/substantiate@c6ae746b882a2454bcb8f2fa5d8587278299f8c3  # v0.1.3
         with:
           report: ${{ github.event.issue.body || github.event.pull_request.body }}
           online: "true"
@@ -177,8 +177,28 @@ jobs:
         run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
 ```
 
-`v1` is a moving tag that follows the latest 0.1.x release. Pin `@v0.1.1` instead if you
-would rather approve every change yourself.
+That pin is a commit SHA on purpose, and it is the one line above worth arguing about.
+
+`pull_request_target` runs with a token that can comment. This workflow is careful about
+the part most people get wrong — it checks out the *base* repository, never the pull
+request head, so nothing a contributor wrote is executed. Resolving the action itself
+through a tag would undo that care: a tag is mutable, and whoever can move it changes what
+runs inside your workflow, with your writable token, without you touching a line. That is
+not hypothetical — `tj-actions/changed-files` was compromised in 2025 by exactly that
+route. A SHA is the only reference GitHub will not let anyone repoint.
+
+This project publishes a moving `v1` tag and moves it automatically on every release,
+which is convenient and is precisely why it is the wrong trust anchor here. Use `@v1` only
+in an `issues:`-only workflow, where no writable token is exposed to untrusted input:
+
+```yaml
+on:
+  issues:
+    types: [opened]
+```
+
+If you run Dependabot, add `github-actions` to its ecosystems and it will bump the SHA and
+tell you which version it moved to, which costs you nothing and keeps the guarantee.
 
 Two things worth understanding before you enable it. `fetch-depth: 0` is not optional:
 without tags, every version and commit claim is skipped, which is most of what a report
