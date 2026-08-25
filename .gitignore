@@ -9,3 +9,6 @@ dist/
 .DS_Store
 dist/
 build/
+
+# Launch drafts: local only.
+writing/
