@@ -83,6 +83,12 @@ _IDENTIFIERS = frozenset(
 )
 
 
+# Parsed declarations, keyed by (repository, revision, path). A resolver is
+# built per check, so this outlives the instance deliberately.
+_DECLARATION_CACHE: dict[tuple[str, str, str], list[tuple[str, int]]] = {}
+_CACHE_LIMIT = 4096
+
+
 class TreeSitterUnavailable(RuntimeError):
     pass
 
@@ -353,6 +359,16 @@ def _enum_declarations(node, macros: dict[str, tuple[int, str, str]]):
             yield declared[0], line_of(declared[1])
 
 
+# Where a pasted enum constant is declared. The idiom exists to write a public
+# option list, so it lives in a header essentially by definition.
+_HEADER_EXTENSIONS = frozenset({"h", "hpp", "hxx", "hh", "inc"})
+_PASTE_FILE_LIMIT = 80
+
+
+def _is_header(path: str) -> bool:
+    return path.rsplit(".", 1)[-1].lower() in _HEADER_EXTENSIONS if "." in path else False
+
+
 def _paste_fragments(name: str):
     """Fragments of ``name`` worth grepping when the whole of it appears nowhere.
 
@@ -428,6 +444,14 @@ class TreeSitterSymbolResolver:
         language = _LANGUAGES.get(ext)
         if language is None:
             return None
+        # One report asks about many symbols and they cluster in the same few
+        # files, so the same header was being reparsed for every claim. The key
+        # is the revision, not the path: a benchmark walking a project's whole
+        # tag history must not be handed another tag's answers.
+        key = (str(repo.path), repo.ref, path)
+        cached = _DECLARATION_CACHE.get(key)
+        if cached is not None:
+            return cached
         content = repo.read(path)
         if not content:
             return None
@@ -435,7 +459,11 @@ class TreeSitterSymbolResolver:
             tree = _parser(language).parse(content.encode("utf-8", "replace"))
         except Exception:
             return None
-        return list(_walk_declarations(tree.root_node, language))
+        declarations = list(_walk_declarations(tree.root_node, language))
+        if len(_DECLARATION_CACHE) >= _CACHE_LIMIT:
+            _DECLARATION_CACHE.clear()
+        _DECLARATION_CACHE[key] = declarations
+        return declarations
 
     def find(self, repo: Repo, name: str) -> list[Location]:
         base = re.split(r"::|->|\.", name)[-1]
@@ -472,10 +500,19 @@ class TreeSitterSymbolResolver:
         What counts as a declaration is still decided by the parser, and only
         an entry whose reconstructed name matches the query exactly is a hit --
         a fragment appearing somewhere proves nothing on its own.
+
+        Only headers are considered, and only while a fragment still narrows
+        something. A fragment is necessarily vaguer than the name it came from:
+        "CURLOPT" matches 980 files in curl but 19 of its headers, and parsing
+        the other 961 to find an enum that was never going to be in them made a
+        fabricated option the slowest thing the tool could be asked about.
         """
         for fragment in _paste_fragments(base):
             hits: list[Location] = []
-            for path in repo.grep_files(fragment):
+            candidates = [p for p in repo.grep_files(fragment) if _is_header(p)]
+            if len(candidates) > _PASTE_FILE_LIMIT:
+                continue
+            for path in candidates:
                 decls = self._declarations(repo, path)
                 if decls is None:
                     continue
