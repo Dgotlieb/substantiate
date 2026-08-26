@@ -89,16 +89,25 @@ jobs:
     env:
       ACTION_MAJOR: v1
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      # Moved through the API rather than "git push -f". A push carrying a
+      # commit that touches .github/workflows/ is rejected -- "refusing to
+      # allow a GitHub App to create or update workflow ... without workflows
+      # permission" -- and there is no `workflows:` scope to grant in the
+      # permissions block above, so no amount of configuring fixes the push.
+      # Updating the ref sends no objects: the commit is already on the remote,
+      # having been released from it, so the restriction does not apply.
       - name: Move the major tag onto this release
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f -a "$ACTION_MAJOR" "$TAG" -m "$ACTION_MAJOR -> $TAG"
-          git push -f origin "$ACTION_MAJOR"
-          echo "::notice::$ACTION_MAJOR now points at $TAG"
+          sha=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
+          type=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.type')
+          if [ "$type" = "tag" ]; then
+            sha=$(gh api "repos/$REPO/git/tags/$sha" --jq '.object.sha')
+          fi
+          gh api -X PATCH "repos/$REPO/git/refs/tags/$ACTION_MAJOR" \
+            -f sha="$sha" -F force=true >/dev/null
+          echo "::notice::$ACTION_MAJOR now points at $TAG ($sha)"
